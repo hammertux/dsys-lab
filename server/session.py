@@ -1,7 +1,6 @@
 import chat_pb2 # Contains the code necessary for constructing messages
 import uuid # Contains code for universally unique identifiers
 import queue
-import object_store
 
 class SessionStore:
   def __init__(self):
