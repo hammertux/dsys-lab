@@ -8,6 +8,7 @@ service ChatServer{
   // Listen for updates from the server. Consistency is only guaranteed after receiving the first Update.
   // This call must only be done once for a specific Client.
   // Note that consistent order of the updates is guaranteed by gRPC.
+  // Messages that were sent before ReceiveUpdates was called may or may not be included.
   rpc ReceiveUpdates(Session) returns (stream Update) {}
 
   // Acknowledge updates received from the server, so that the server knows if the connection was dropped.
@@ -29,38 +30,41 @@ message Acknowledgement{
   Session session = 1;
   //indicates to the server how many updates from the stream were already received by the client
   int64 numUpdatesReceived = 2;
+  //indicates to the server how many messages in the stream were already received by the client
+  int64 numMessagesReceived = 3;
   //indicates how many messages the client has sent using SendMessage
-  int64 numMessagesSent = 3;
+  //(including the one it is sending in this request if applicable)
+  int64 numMessagesSent = 4;
 }
 
 message MessageStatus{
   // indicates the status of the message
-  StatusCode statusCode = 1;
+  MessageStatusCode statusCode = 1;
 
-  //the timestamp at which the messages was accepted
-  ServerTime timestamp = 2;
+  //the timestamp at which the messages was accepted (or rejected)
+  ServerTime messageTime = 2;
+}
 
-  // indicates the status of a message
-  enum StatusCode{
-    // the message was received succesfully by the server
-    OK = 0;
-    // the client does not seem to adhere to the protocol correctly
-    // (for example, sending an invalid Client.id)
-    CLIENT_ERROR = 1;
-    // some other error occurred on the server (similar to HTTP 500)
-    INTERNAL_ERROR = 2;
-    // too many messages have arrived on the server since the client sent the message
-    // or too many messages from the client still need to be accepted by the server (or a combination)
-    // the client could retry sending the message when it has received more messages from the server
-    ORDER_ERROR = 3;
-    // the server has too many messages that have not been sent to all active clients yet
-    // to ensure some amount of consistency, this message was rejected
-    // the client could try again later
-    NUMERICAL_ERROR = 4;
-    // it took too long for your message to be sent to the server
-    // the client could try again hoping that this time the message will arrive earlier
-    STALENESS = 5;
-  }
+// indicates the status of a message
+enum MessageStatusCode{
+  // the message was received succesfully by the server
+  OK = 0;
+  // the client does not seem to adhere to the protocol correctly
+  // (for example, sending an invalid Client.id)
+  CLIENT_ERROR = 1;
+  // some other error occurred on the server (similar to HTTP 500)
+  INTERNAL_ERROR = 2;
+  // too many messages have arrived on the server since the client sent the message
+  // or too many messages from the client still need to be accepted by the server (or a combination)
+  // the client could retry sending the message when it has received more messages from the server
+  ORDER_ERROR = 3;
+  // the server has too many messages that have not been sent to all active clients yet
+  // to ensure some amount of consistency, this message was rejected
+  // the client could try again later
+  NUMERICAL_ERROR = 4;
+  // it took too long for your message to be sent to the server
+  // the client could try again hoping that this time the message will arrive earlier
+  STALENESS = 5;
 }
 
 // the time as it is on the server
@@ -82,21 +86,19 @@ message UUID{
 }
 
 message Thread{
-  // Uniquely identifies the thread (0 for the global chat)
+  // Uniquely identifies the thread (empty for the global chat)
   UUID uuid = 1;
 }
 
 message SentMessage{
-  // The thread the message should be sent to (optional)
-  Thread thread = 1;
+  // Indicates the state of the client at the time of sending the message
+  Acknowledgement acknowledgement = 4;
   // Contents of the message
   string contents = 2;
   // Time the message was sent
   // The client guarantees that the message was sent after this time
   // (taking into account that received server times could be inaccurate, although the client can make some assumptions about the server's clock)
   ServerTime timestamp = 3; 
-  // Indicates the state of the client at the time of sending the message
-  Acknowledgement acknowledgement = 4;
 }
 
 // Represents an update from the server to the client

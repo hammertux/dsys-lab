@@ -1,3 +1,3 @@
 import time
 def current_server_time():
-  return time.time_ns() // 1000
+  return int(round(time.time() * 1000 * 1000))

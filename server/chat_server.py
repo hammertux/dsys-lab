@@ -1,10 +1,15 @@
-import chat_pb2_grpc # Contains the code necessary for creating the GRPC server and instantiating the service
-import chat_pb2 # Contains the code necessary for constructing messages
-import session # Keeps track of which clients are connected
+from proto import chat_pb2_grpc # Contains the code necessary for creating the GRPC server and instantiating the service
+from proto import chat_pb2 # Contains the code necessary for constructing messages
+from . import session # Keeps track of which clients are connected
 import uuid
-import time_utils
-import message as message_mod
+from . import time_utils
+from . import message as message_mod
 import queue
+import grpc
+import threading
+import concurrent
+import time
+from pprint import pprint
 
 def string_to_uuid_or_default(string, default):
   try:
@@ -12,108 +17,155 @@ def string_to_uuid_or_default(string, default):
   except:
     return default
 
-"""Implements ChatServerServicer. This class contains all the procedures that can be accessed by RPC's"""
+def create_connection_response(currentTime, session, thread_uuid):
+  result = chat_pb2.ConnectionResponse()
+  result.session.uuid.hex = session.uuid.hex
+  result.session.thread.uuid.hex = thread_uuid.hex
+  return result
+
+"""Implements ChatServerServicer. This class contains all the procedures that can be accessed by RPC's.
+It delegates most task to the thread specific servicer"""
 class ChatServicer(chat_pb2_grpc.ChatServerServicer):
   def __init__(self):
     self.threads = {}
-    self.default_uuid = uuid.UUID(0)
+    self.default_uuid = uuid.UUID(int=0)
+
 
   def add_default_thread(self):
     self.add_thread(self.default_uuid)
 
+
   def add_thread(self, uuid):
     self.threads[uuid] = ThreadServicer(uuid)
+    self.threads[uuid].start_broadcasting()
 
-  def get_or_create_thread(self, uuid):
+
+  def __get_or_create_thread(self, uuid):
     if (not uuid in self.threads):
       self.add_thread(uuid)
     return self.threads[uuid]
 
-  """Generates a new client ID and returns it to the caller."""
-  def Connect(self, thread):
-    thread_uuid = string_to_uuid_or_default(thread.uuid.hex, self.default_uuid)
-    response = chat_pb2.ConnectionResponse()
-    response.session = self.get_or_create_thread(thread_uuid).Connect()
-    response.currentTime = time_utils.current_server_time()
-    return response
 
-  def ReceiveUpdates(self, session):
-    return self.threads[session.thread.uuid.hex].ReceiveUpdates(session.uuid)
+  def lookup_thread(self, thread):
+    return self.__get_or_create_thread(self.parse_uuid(thread.uuid.hex))
   
-  def Acknowlegde(self, acknowledgement):
-    self.threads[acknowledgement.session.thread.uuid.hex].Acknowlegde(acknowledgement)
+  def parse_uuid(self, uuid_hex):
+    return string_to_uuid_or_default(uuid_hex, self.default_uuid)
+
+
+  """Generates a new client ID and returns it to the caller."""
+  def Connect(self, thread, context):
+    # defer the processing to the appropriate servicer
+    return self.lookup_thread(thread).Connect() # defer connections to the thread servicer
+
+
+  def ReceiveUpdates(self, session, context):
+    # defer the processing to the appropriate servicer
+    return self.lookup_thread(session.thread).ReceiveUpdates(uuid.UUID(session.uuid.hex))
+
+
+  def Acknowlegde(self, acknowledgement, context):
+    # defer the processing to the appropriate servicer
+    self.lookup_thread(acknowledgement.session.thread).Acknowlegde(acknowledgement)
+
+    # Response is always just the server time
     server_time = chat_pb2.ServerTime()
     server_time.timestamp = time_utils.current_server_time()
     return server_time
   
-  def SendMessage(self, sentMessage):
-    thread_uuid = string_to_uuid_or_default(thread.uuid.hex, self.default_uuid)
-    return self.get_or_create_thread(thread_uuid).SendMessage(sentMessage)
-  
-  def SendMessages(self, sentMessages):
+
+  def __send_message(self, sentMessage):
+    # defer the processing to the appropriate servicer
+    return self.lookup_thread(sentMessage.acknowledgement.session.thread).SendMessage(sentMessage)
+
+
+  def SendMessage(self, sentMessage, context):
+    return self.__send_message(sentMessage)
+
+
+  def SendMessages(self, sentMessages, context):
     for sentMessage in sentMessages:
-      yield self.SendMessage(sentMessage)
-  
+      yield self.__send_message(sentMessage)
+
+
   def start_running(self):
-    thread.start_new_thread(self.__broadcast_messages) # Should I add self as an argument here or not?
+    for thread in self.threads.values():
+      thread.start_new_thread(thread.broadcast_messages) # Should I add self as an argument here or not?
 
 class ThreadServicer:
   def __init__(self, uuid):
     self.session_store = session.SessionStore()
     self.uuid = uuid
-    self.expirationTime = time_utils.current_server_time()
-    self.sessionLength = 10*1000*1000 # session length in microseconds
-    self.num_updates_sent = 0
-    self.num_updates_acknowledged = 0
     self.broadcast_queue = queue.Queue()
     self.max_wait_in_send_message_in_seconds = 1
 
-  def session_to_chat_pb2(self, session):
-    result = chat_pb2.Session()
-    result.uuid.hex = session.uuid.hex
-    result.thread_uuid_hex = self.uuid.hex
-    return result
-
   def Connect(self):
-    return self.session_to_chat_pb2(self.session_store.create())
+    session = self.session_store.create()
+    return create_connection_response(time_utils.current_server_time(), session, self.uuid)
   
   def ReceiveUpdates(self, session_uuid):
-    session = self.session_store.retrieve(session_uuid)
-    while True:
-      message = session.queue.get() # blocks until there are elements in the queue
-      update = chat_pb2.Update()
-      update.message = message
-      update.currentTime.timestamp = time_utils.current_server_time()
-      update.expirationTime.timestamp = self.expirationTime = update.currentTime + self.sessionLength
-      self.num_updates_sent += 1
-      yield update
+    # defer the processing to the appropriate session object
+    return self.session_store.retrieve(session_uuid).ReceiveUpdates()
 
   def Acknowlegde(self, acknowledgement):
-    self.num_updates_acknowledged += 1
+    # defer the processing to the appropriate session object
+    self.session_store.retrieve(acknowledgement.session.uuid).Acknowlegde(acknowledgement)
 
-  def is_session_expired(self):
-    return time_utils.current_server_time() > self.expirationTime
-
-  def SendMessage(self):
+  def SendMessage(self, sentMessage):
+    # parse the sent message into another format
     message = message_mod.Message(sentMessage)
-    try:
-      self.broadcast_queue.put(message, True, self.max_wait_in_send_message_in_seconds)
-      message.server_time = time_utils.current_server_time()
-      message.initialized_event.set()
-      timestamp = message.server_time
-    except queue.Full:
-      status_code = chat_pb2.MessageStatus.StatusCode.NUMERICAL_ERROR
+
     message_status = chat_pb2.MessageStatus()
-    message_status.statusCode = status_code
-    if timestamp:
-      message_status.timestamp = timestamp
-    else:
-      message_status.timestamp = time_utils.current_server_time()
+    return message_status
+    try:
+      # try putting the message in the broadcast queue
+      self.broadcast_queue.put(message, True, self.max_wait_in_send_message_in_seconds)
+      # set the time of the message to the time it was accepted
+      message.server_time = time_utils.current_server_time()
+      # mark it as initialized (this mechanism is necessary to ensure that the message has a consistent time)
+      message.initialized_event.set()
+      
+      # put the information into the message status
+      message_status.messageTime.timestamp = message.server_time
+      message_status.status_code = chat_pb2.MessageStatusCode.OK
+    
+    # if there was no space in the queue left and the timer ran out
+    except queue.Full:
+      # provide information about the failure to the client
+      message_status.status_code = chat_pb2.MessageStatusCode.NUMERICAL_ERROR
+      message_status.messageTime.timestamp = time_utils.current_server_time()
+
     return message_status
 
-  def __broadcast_messages(self):
+  def start_broadcasting(self):
+    self.broadcast_thread = threading.Thread(target=self.broadcast_messages)
+    self.broadcast_thread.start()
+
+  def broadcast_messages(self):
     while True:
+      # wait for a new message if neccessary
       message = self.broadcast_queue.get()
+      # convert it to the ReceivedMessage format (waits for the initialization to complete)
       received_message = message.to_received_message()
+      # queue it for all sessions subscribed to this thread
       for session in self.session_store.sessions.values():
         session.messageQueue.put(received_message)
+
+server = None
+def serve(block = False):
+  global server
+  server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=10))
+  servicer = ChatServicer()
+  chat_pb2_grpc.add_ChatServerServicer_to_server(servicer, server)
+  server.add_insecure_port('[::]:50051')
+  server.start()
+  servicer.start_running()
+  if block:
+    server.wait_for_termination()
+
+def stop_serving():
+  global server
+  server.stop(0)
+
+if __name__ == '__main__':
+  serve(True)
