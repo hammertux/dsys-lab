@@ -17,6 +17,9 @@ class SessionStore:
   def retrieve(self, uuid):
     return self.sessions[uuid]
 
+  def retrieve_by_hex(self, hex):
+    return self.sessions[uuid.UUID(hex=hex)]
+
 class Session:
   def __init__(self):
     # uuid of the session
@@ -81,6 +84,9 @@ class Session:
       update = message_mod.Update(self.sessionLength)
       update.add_message(message)
       print("Sending")
+
+      self.numUpdatesSent += 1
+      self.numMessagesSent += 1
 
       # send it to the client
       yield update.to_chat_pb2()

@@ -105,7 +105,7 @@ class ThreadServicer:
 
   def Acknowlegde(self, acknowledgement):
     # defer the processing to the appropriate session object
-    self.session_store.retrieve(acknowledgement.session.uuid).Acknowlegde(acknowledgement)
+    self.session_store.retrieve_by_hex(acknowledgement.session.uuid.hex).Acknowledge(acknowledgement)
 
   def SendMessage(self, sentMessage):
     # parse the sent message into another format

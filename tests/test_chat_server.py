@@ -34,3 +34,4 @@ class TestBasicServerFunctionality(unittest.TestCase):
     self.assertEqual(0, message_status.statusCode)
     received_update = next(receive_response)
     self.assertEqual(sentMessage.contents, received_update.message[0].contents)
+    self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session), None).timestamp)
