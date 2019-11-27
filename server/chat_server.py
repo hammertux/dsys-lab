@@ -54,9 +54,9 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
 
 
   """Generates a new client ID and returns it to the caller."""
-  def Connect(self, thread, context):
+  def Connect(self, connectionRequest, context):
     # defer the processing to the appropriate servicer
-    return self.lookup_thread(thread).Connect() # defer connections to the thread servicer
+    return self.lookup_thread(connectionRequest.thread).Connect(connectionRequest.name) # defer connections to the thread servicer
 
 
   def ReceiveUpdates(self, session, context):
@@ -94,8 +94,8 @@ class ThreadServicer:
     self.broadcast_queue = queue.Queue()
     self.max_wait_in_send_message_in_seconds = 1
 
-  def Connect(self):
-    session = self.session_store.create()
+  def Connect(self, name):
+    session = self.session_store.create(name)
     return create_connection_response(time_utils.current_server_time(), session, self.uuid)
   
   def ReceiveUpdates(self, session_uuid):
@@ -109,7 +109,7 @@ class ThreadServicer:
 
   def SendMessage(self, sentMessage):
     # parse the sent message into another format
-    message = message_mod.Message(sentMessage)
+    message = message_mod.Message(sentMessage, self.session_store.retrieve_by_hex(sentMessage.acknowledgement.session.uuid.hex).name)
 
     message_status = chat_pb2.MessageStatus()
     try:

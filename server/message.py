@@ -5,12 +5,13 @@ import threading
 
 class Message:
   """Constructs a new Message based on a SentMessage. For thread safety, all functionality is blocked until complete_initalization is called."""
-  def __init__(self, sentMessage):
+  def __init__(self, sentMessage, senderName):
     self.thread = sentMessage.acknowledgement.session.thread
     self.contents = sentMessage.contents
     self.uuid = uuid.uuid4()
     self.__initialized_event = threading.Event()
     self.server_time = None
+    self.senderName = senderName
   
   """Completes the iniatlization of the message, allowing other threads to use its data"""
   def complete_initalization(self):
@@ -24,6 +25,7 @@ class Message:
     received_message.contents = self.contents
     received_message.uuid.hex = self.uuid.hex
     received_message.serverTime.timestamp = self.server_time
+    received_message.sender = self.senderName
     return received_message
 
 
