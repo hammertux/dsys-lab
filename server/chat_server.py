@@ -87,11 +87,6 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
     for sentMessage in sentMessages:
       yield self.__send_message(sentMessage)
 
-
-  def start_running(self):
-    for thread in self.threads.values():
-      thread.start_new_thread(thread.broadcast_messages) # Should I add self as an argument here or not?
-
 class ThreadServicer:
   def __init__(self, uuid):
     self.session_store = session.SessionStore()
@@ -106,29 +101,30 @@ class ThreadServicer:
   
   def ReceiveUpdates(self, session_uuid):
     # defer the processing to the appropriate session object
+    threading.current_thread.daemon = True
     return self.session_store.retrieve(session_uuid).ReceiveUpdates()
 
   def Acknowlegde(self, acknowledgement):
     # defer the processing to the appropriate session object
-    self.session_store.retrieve(acknowledgement.session.uuid).Acknowlegde(acknowledgement)
+    self.session_store.retrieve_by_hex(acknowledgement.session.uuid.hex).Acknowledge(acknowledgement)
 
   def SendMessage(self, sentMessage):
     # parse the sent message into another format
     message = message_mod.Message(sentMessage)
 
     message_status = chat_pb2.MessageStatus()
-    return message_status
     try:
       # try putting the message in the broadcast queue
       self.broadcast_queue.put(message, True, self.max_wait_in_send_message_in_seconds)
       # set the time of the message to the time it was accepted
       message.server_time = time_utils.current_server_time()
-      # mark it as initialized (this mechanism is necessary to ensure that the message has a consistent time)
-      message.initialized_event.set()
+      # initialization is now complete
+      message.complete_initalization()
+      
       
       # put the information into the message status
       message_status.messageTime.timestamp = message.server_time
-      message_status.status_code = chat_pb2.MessageStatusCode.OK
+      message_status.statusCode = chat_pb2.MessageStatusCode.OK
     
     # if there was no space in the queue left and the timer ran out
     except queue.Full:
@@ -139,18 +135,18 @@ class ThreadServicer:
     return message_status
 
   def start_broadcasting(self):
-    self.broadcast_thread = threading.Thread(target=self.broadcast_messages)
+    # create the broadcast thread as a daemon thread
+    # such that as soon as the server stops, this thread should stop as well
+    self.broadcast_thread = threading.Thread(target=self.broadcast_messages, daemon=True)
     self.broadcast_thread.start()
 
   def broadcast_messages(self):
     while True:
       # wait for a new message if neccessary
       message = self.broadcast_queue.get()
-      # convert it to the ReceivedMessage format (waits for the initialization to complete)
-      received_message = message.to_received_message()
       # queue it for all sessions subscribed to this thread
       for session in self.session_store.sessions.values():
-        session.messageQueue.put(received_message)
+        session.messageQueue.put(message)
 
 server = None
 def serve(block = False):
@@ -160,13 +156,9 @@ def serve(block = False):
   chat_pb2_grpc.add_ChatServerServicer_to_server(servicer, server)
   server.add_insecure_port('[::]:50051')
   server.start()
-  servicer.start_running()
   if block:
     server.wait_for_termination()
 
 def stop_serving():
   global server
   server.stop(0)
-
-if __name__ == '__main__':
-  serve(True)
