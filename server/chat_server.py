@@ -7,7 +7,7 @@ from . import message as message_mod
 import queue
 import grpc
 import threading
-import concurrent
+import concurrent.futures
 import time
 from pprint import pprint
 
@@ -96,6 +96,7 @@ class ThreadServicer:
 
   def Connect(self):
     session = self.session_store.create()
+    print('New user connection')
     return create_connection_response(time_utils.current_server_time(), session, self.uuid)
   
   def ReceiveUpdates(self, session_uuid):
