@@ -16,7 +16,7 @@ class ChatServerStub(object):
     """
     self.Connect = channel.unary_unary(
         '/ChatServer/Connect',
-        request_serializer=chat__pb2.Thread.SerializeToString,
+        request_serializer=chat__pb2.ConnectionRequest.SerializeToString,
         response_deserializer=chat__pb2.ConnectionResponse.FromString,
         )
     self.ReceiveUpdates = channel.unary_stream(
@@ -92,7 +92,7 @@ def add_ChatServerServicer_to_server(servicer, server):
   rpc_method_handlers = {
       'Connect': grpc.unary_unary_rpc_method_handler(
           servicer.Connect,
-          request_deserializer=chat__pb2.Thread.FromString,
+          request_deserializer=chat__pb2.ConnectionRequest.FromString,
           response_serializer=chat__pb2.ConnectionResponse.SerializeToString,
       ),
       'ReceiveUpdates': grpc.unary_stream_rpc_method_handler(

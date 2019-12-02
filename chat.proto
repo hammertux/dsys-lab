@@ -3,7 +3,7 @@ syntax = "proto3";
 service ChatServer{
   // Required before making other calls to obtain a valid Client object
   // If a client wants to listen to multiple threads, it should make multiple connections
-  rpc Connect(Thread) returns (ConnectionResponse) {}
+  rpc Connect(ConnectionRequest) returns (ConnectionResponse) {}
 
   // Listen for updates from the server. Consistency is only guaranteed after receiving the first Update.
   // This call must only be done once for a specific Client.
@@ -79,6 +79,11 @@ message ConnectionResponse{
   ServerTime currentTime = 1;
   // The client the server is responding to.
   Session session = 2;
+}
+
+message ConnectionRequest{
+  Thread thread = 1;
+  string name = 2;
 }
 
 message UUID{
