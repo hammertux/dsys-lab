@@ -9,8 +9,8 @@ class SessionStore:
   def __init__(self):
     self.sessions = {}
 
-  def create(self):
-    session = Session()
+  def create(self, name):
+    session = Session(name)
     self.sessions[session.uuid] = session
     return session
   
@@ -21,9 +21,13 @@ class SessionStore:
     return self.sessions[uuid.UUID(hex=hex)]
 
 class Session:
-  def __init__(self):
+  def __init__(self, name):
     # uuid of the session
     self.uuid = uuid.uuid4()
+
+    # the display name when sending messages
+    self.name = name
+
     # queue containing messages that need to be sent to the clients
     self.messageQueue = queue.Queue()
     # consistency metrics

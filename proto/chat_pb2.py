@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\nchat.proto\"~\n\x0f\x41\x63knowledgement\x12\x19\n\x07session\x18\x01 \x01(\x0b\x32\x08.Session\x12\x1a\n\x12numUpdatesReceived\x18\x02 \x01(\x03\x12\x1b\n\x13numMessagesReceived\x18\x03 \x01(\x03\x12\x17\n\x0fnumMessagesSent\x18\x04 \x01(\x03\"Y\n\rMessageStatus\x12&\n\nstatusCode\x18\x01 \x01(\x0e\x32\x12.MessageStatusCode\x12 \n\x0bmessageTime\x18\x02 \x01(\x0b\x32\x0b.ServerTime\"\x1f\n\nServerTime\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\"Q\n\x12\x43onnectionResponse\x12 \n\x0b\x63urrentTime\x18\x01 \x01(\x0b\x32\x0b.ServerTime\x12\x19\n\x07session\x18\x02 \x01(\x0b\x32\x08.Session\"\x13\n\x04UUID\x12\x0b\n\x03hex\x18\x01 \x01(\t\"\x1d\n\x06Thread\x12\x13\n\x04uuid\x18\x01 \x01(\x0b\x32\x05.UUID\"j\n\x0bSentMessage\x12)\n\x0f\x61\x63knowledgement\x18\x04 \x01(\x0b\x32\x10.Acknowledgement\x12\x10\n\x08\x63ontents\x18\x02 \x01(\t\x12\x1e\n\ttimestamp\x18\x03 \x01(\x0b\x32\x0b.ServerTime\"r\n\x06Update\x12 \n\x0b\x63urrentTime\x18\x01 \x01(\x0b\x32\x0b.ServerTime\x12#\n\x0e\x65xpirationTime\x18\x02 \x01(\x0b\x32\x0b.ServerTime\x12!\n\x07message\x18\x03 \x03(\x0b\x32\x10.ReceivedMessage\"\x82\x01\n\x0fReceivedMessage\x12\x17\n\x06thread\x18\x01 \x01(\x0b\x32\x07.Thread\x12\x10\n\x08\x63ontents\x18\x02 \x01(\t\x12\x1f\n\nserverTime\x18\x03 \x01(\x0b\x32\x0b.ServerTime\x12\x13\n\x04uuid\x18\x04 \x01(\x0b\x32\x05.UUID\x12\x0e\n\x06sender\x18\x05 \x01(\t\"7\n\x07Session\x12\x13\n\x04uuid\x18\x01 \x01(\x0b\x32\x05.UUID\x12\x17\n\x06thread\x18\x02 \x01(\x0b\x32\x07.Thread*v\n\x11MessageStatusCode\x12\x06\n\x02OK\x10\x00\x12\x10\n\x0c\x43LIENT_ERROR\x10\x01\x12\x12\n\x0eINTERNAL_ERROR\x10\x02\x12\x0f\n\x0bORDER_ERROR\x10\x03\x12\x13\n\x0fNUMERICAL_ERROR\x10\x04\x12\r\n\tSTALENESS\x10\x05\x32\xf3\x01\n\nChatServer\x12)\n\x07\x43onnect\x12\x07.Thread\x1a\x13.ConnectionResponse\"\x00\x12\'\n\x0eReceiveUpdates\x12\x08.Session\x1a\x07.Update\"\x00\x30\x01\x12.\n\x0b\x41\x63knowlegde\x12\x10.Acknowledgement\x1a\x0b.ServerTime\"\x00\x12-\n\x0bSendMessage\x12\x0c.SentMessage\x1a\x0e.MessageStatus\"\x00\x12\x32\n\x0cSendMessages\x12\x0c.SentMessage\x1a\x0e.MessageStatus\"\x00(\x01\x30\x01\x62\x06proto3')
+  serialized_pb=_b('\n\nchat.proto\"~\n\x0f\x41\x63knowledgement\x12\x19\n\x07session\x18\x01 \x01(\x0b\x32\x08.Session\x12\x1a\n\x12numUpdatesReceived\x18\x02 \x01(\x03\x12\x1b\n\x13numMessagesReceived\x18\x03 \x01(\x03\x12\x17\n\x0fnumMessagesSent\x18\x04 \x01(\x03\"Y\n\rMessageStatus\x12&\n\nstatusCode\x18\x01 \x01(\x0e\x32\x12.MessageStatusCode\x12 \n\x0bmessageTime\x18\x02 \x01(\x0b\x32\x0b.ServerTime\"\x1f\n\nServerTime\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\"Q\n\x12\x43onnectionResponse\x12 \n\x0b\x63urrentTime\x18\x01 \x01(\x0b\x32\x0b.ServerTime\x12\x19\n\x07session\x18\x02 \x01(\x0b\x32\x08.Session\":\n\x11\x43onnectionRequest\x12\x17\n\x06thread\x18\x01 \x01(\x0b\x32\x07.Thread\x12\x0c\n\x04name\x18\x02 \x01(\t\"\x13\n\x04UUID\x12\x0b\n\x03hex\x18\x01 \x01(\t\"\x1d\n\x06Thread\x12\x13\n\x04uuid\x18\x01 \x01(\x0b\x32\x05.UUID\"j\n\x0bSentMessage\x12)\n\x0f\x61\x63knowledgement\x18\x04 \x01(\x0b\x32\x10.Acknowledgement\x12\x10\n\x08\x63ontents\x18\x02 \x01(\t\x12\x1e\n\ttimestamp\x18\x03 \x01(\x0b\x32\x0b.ServerTime\"r\n\x06Update\x12 \n\x0b\x63urrentTime\x18\x01 \x01(\x0b\x32\x0b.ServerTime\x12#\n\x0e\x65xpirationTime\x18\x02 \x01(\x0b\x32\x0b.ServerTime\x12!\n\x07message\x18\x03 \x03(\x0b\x32\x10.ReceivedMessage\"\x82\x01\n\x0fReceivedMessage\x12\x17\n\x06thread\x18\x01 \x01(\x0b\x32\x07.Thread\x12\x10\n\x08\x63ontents\x18\x02 \x01(\t\x12\x1f\n\nserverTime\x18\x03 \x01(\x0b\x32\x0b.ServerTime\x12\x13\n\x04uuid\x18\x04 \x01(\x0b\x32\x05.UUID\x12\x0e\n\x06sender\x18\x05 \x01(\t\"7\n\x07Session\x12\x13\n\x04uuid\x18\x01 \x01(\x0b\x32\x05.UUID\x12\x17\n\x06thread\x18\x02 \x01(\x0b\x32\x07.Thread*v\n\x11MessageStatusCode\x12\x06\n\x02OK\x10\x00\x12\x10\n\x0c\x43LIENT_ERROR\x10\x01\x12\x12\n\x0eINTERNAL_ERROR\x10\x02\x12\x0f\n\x0bORDER_ERROR\x10\x03\x12\x13\n\x0fNUMERICAL_ERROR\x10\x04\x12\r\n\tSTALENESS\x10\x05\x32\xfe\x01\n\nChatServer\x12\x34\n\x07\x43onnect\x12\x12.ConnectionRequest\x1a\x13.ConnectionResponse\"\x00\x12\'\n\x0eReceiveUpdates\x12\x08.Session\x1a\x07.Update\"\x00\x30\x01\x12.\n\x0b\x41\x63knowlegde\x12\x10.Acknowledgement\x1a\x0b.ServerTime\"\x00\x12-\n\x0bSendMessage\x12\x0c.SentMessage\x1a\x0e.MessageStatus\"\x00\x12\x32\n\x0cSendMessages\x12\x0c.SentMessage\x1a\x0e.MessageStatus\"\x00(\x01\x30\x01\x62\x06proto3')
 )
 
 _MESSAGESTATUSCODE = _descriptor.EnumDescriptor(
@@ -57,8 +57,8 @@ _MESSAGESTATUSCODE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=815,
-  serialized_end=933,
+  serialized_start=875,
+  serialized_end=993,
 )
 _sym_db.RegisterEnumDescriptor(_MESSAGESTATUSCODE)
 
@@ -231,6 +231,44 @@ _CONNECTIONRESPONSE = _descriptor.Descriptor(
 )
 
 
+_CONNECTIONREQUEST = _descriptor.Descriptor(
+  name='ConnectionRequest',
+  full_name='ConnectionRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='thread', full_name='ConnectionRequest.thread', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='name', full_name='ConnectionRequest.name', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=349,
+  serialized_end=407,
+)
+
+
 _UUID = _descriptor.Descriptor(
   name='UUID',
   full_name='UUID',
@@ -257,8 +295,8 @@ _UUID = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=349,
-  serialized_end=368,
+  serialized_start=409,
+  serialized_end=428,
 )
 
 
@@ -288,8 +326,8 @@ _THREAD = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=370,
-  serialized_end=399,
+  serialized_start=430,
+  serialized_end=459,
 )
 
 
@@ -333,8 +371,8 @@ _SENTMESSAGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=401,
-  serialized_end=507,
+  serialized_start=461,
+  serialized_end=567,
 )
 
 
@@ -378,8 +416,8 @@ _UPDATE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=509,
-  serialized_end=623,
+  serialized_start=569,
+  serialized_end=683,
 )
 
 
@@ -437,8 +475,8 @@ _RECEIVEDMESSAGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=626,
-  serialized_end=756,
+  serialized_start=686,
+  serialized_end=816,
 )
 
 
@@ -475,8 +513,8 @@ _SESSION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=758,
-  serialized_end=813,
+  serialized_start=818,
+  serialized_end=873,
 )
 
 _ACKNOWLEDGEMENT.fields_by_name['session'].message_type = _SESSION
@@ -484,6 +522,7 @@ _MESSAGESTATUS.fields_by_name['statusCode'].enum_type = _MESSAGESTATUSCODE
 _MESSAGESTATUS.fields_by_name['messageTime'].message_type = _SERVERTIME
 _CONNECTIONRESPONSE.fields_by_name['currentTime'].message_type = _SERVERTIME
 _CONNECTIONRESPONSE.fields_by_name['session'].message_type = _SESSION
+_CONNECTIONREQUEST.fields_by_name['thread'].message_type = _THREAD
 _THREAD.fields_by_name['uuid'].message_type = _UUID
 _SENTMESSAGE.fields_by_name['acknowledgement'].message_type = _ACKNOWLEDGEMENT
 _SENTMESSAGE.fields_by_name['timestamp'].message_type = _SERVERTIME
@@ -499,6 +538,7 @@ DESCRIPTOR.message_types_by_name['Acknowledgement'] = _ACKNOWLEDGEMENT
 DESCRIPTOR.message_types_by_name['MessageStatus'] = _MESSAGESTATUS
 DESCRIPTOR.message_types_by_name['ServerTime'] = _SERVERTIME
 DESCRIPTOR.message_types_by_name['ConnectionResponse'] = _CONNECTIONRESPONSE
+DESCRIPTOR.message_types_by_name['ConnectionRequest'] = _CONNECTIONREQUEST
 DESCRIPTOR.message_types_by_name['UUID'] = _UUID
 DESCRIPTOR.message_types_by_name['Thread'] = _THREAD
 DESCRIPTOR.message_types_by_name['SentMessage'] = _SENTMESSAGE
@@ -535,6 +575,13 @@ ConnectionResponse = _reflection.GeneratedProtocolMessageType('ConnectionRespons
   # @@protoc_insertion_point(class_scope:ConnectionResponse)
   })
 _sym_db.RegisterMessage(ConnectionResponse)
+
+ConnectionRequest = _reflection.GeneratedProtocolMessageType('ConnectionRequest', (_message.Message,), {
+  'DESCRIPTOR' : _CONNECTIONREQUEST,
+  '__module__' : 'chat_pb2'
+  # @@protoc_insertion_point(class_scope:ConnectionRequest)
+  })
+_sym_db.RegisterMessage(ConnectionRequest)
 
 UUID = _reflection.GeneratedProtocolMessageType('UUID', (_message.Message,), {
   'DESCRIPTOR' : _UUID,
@@ -586,15 +633,15 @@ _CHATSERVER = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   serialized_options=None,
-  serialized_start=936,
-  serialized_end=1179,
+  serialized_start=996,
+  serialized_end=1250,
   methods=[
   _descriptor.MethodDescriptor(
     name='Connect',
     full_name='ChatServer.Connect',
     index=0,
     containing_service=None,
-    input_type=_THREAD,
+    input_type=_CONNECTIONREQUEST,
     output_type=_CONNECTIONRESPONSE,
     serialized_options=None,
   ),
