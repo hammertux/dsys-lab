@@ -28,7 +28,8 @@ class Client:
             try:
                 if thread == None:
                     thread = self.default_thread
-                res = self.connection.Connect(thread)
+                connection_request = chat_pb2.ConnectionRequest(thread=thread, name=self.username)
+                res = self.connection.Connect(connection_request)
                 break
             except:
                 print('Connection failed')
@@ -76,7 +77,7 @@ class Client:
             thread = 'global'
             suffix = ' | ' + id
 
-        print(formatted_time + ' | ' + thread + ' | ' + ' unknown ' + ': ' + msg.contents + suffix + "\n")
+        print(formatted_time + ' | ' + thread + ' | ' + msg.sender + ': ' + msg.contents + suffix + "\n")
 
     def handle_input(self, user_input):
         # Get thread

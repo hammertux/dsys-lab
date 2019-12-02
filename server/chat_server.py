@@ -95,7 +95,7 @@ class ThreadServicer:
     self.max_wait_in_send_message_in_seconds = 1
 
   def Connect(self, name):
-    print('New user connection')
+    print('New connection')
     session = self.session_store.create(name)
     return create_connection_response(time_utils.current_server_time(), session, self.uuid)
   
