@@ -20,7 +20,7 @@ class Client:
         self.global_uuid = None
 
         # Key: session uuid hex
-        # Value: dict(session, messages_sent, messages_received updates_received)
+        # Value: dict(session, messages_sent, messages_received, updates_received)
         self.sessions = {}
 
     def connect(self, thread=None):
@@ -73,7 +73,7 @@ class Client:
         thread = str(msg.thread.uuid.hex)
         id = str(msg.uuid.hex)
         suffix = ''
-        if thread == '00000000000000000000000000000000':
+        if thread == self.global_uuid:
             thread = 'global'
             suffix = ' | ' + id
 
