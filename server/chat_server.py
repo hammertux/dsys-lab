@@ -7,7 +7,7 @@ from . import message as message_mod
 import queue
 import grpc
 import threading
-import concurrent
+import concurrent.futures
 import time
 from pprint import pprint
 
@@ -95,6 +95,7 @@ class ThreadServicer:
     self.max_wait_in_send_message_in_seconds = 1
 
   def Connect(self, name):
+    print('New user connection')
     session = self.session_store.create(name)
     return create_connection_response(time_utils.current_server_time(), session, self.uuid)
   
