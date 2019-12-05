@@ -4,97 +4,105 @@ import queue
 import threading
 from . import time_utils
 from . import message as message_mod
+from .acknowledgement_tracker import AcknowledgementTracker, ProxyAcknowledgeable
+from .queue_generator import StoppableQueueGenerator
+import time
 
 class SessionStore:
   def __init__(self):
-    self.sessions = {}
+    self.dict = {}
 
-  def create(self, name):
-    session = Session(name)
-    self.sessions[session.uuid] = session
+  def create(self, thread_servicer, name):
+    session = Session(thread_servicer, name)
     return session
   
+  def add(self, session):
+    self.dict[session.uuid] = session
+  
   def retrieve(self, uuid):
-    return self.sessions[uuid]
+    return self.dict[uuid]
 
   def retrieve_by_hex(self, hex):
-    return self.sessions[uuid.UUID(hex=hex)]
+    return self.dict[uuid.UUID(hex=hex)]
 
-class Session:
-  def __init__(self, name):
+class SessionMessage:
+  def __init__(self, message, acknowledgeable):
+    self.message = message
+    self.acknowledgeable = ProxyAcknowledgeable(acknowledgeable)
+
+class Session(AcknowledgementTracker, message_mod.ChatCommittable):
+  def __init__(self, thread_servicer, name):
+    AcknowledgementTracker.__init__(self)
     # uuid of the session
     self.uuid = uuid.uuid4()
-
-    # the display name when sending messages
     self.name = name
-
-    # queue containing messages that need to be sent to the clients
-    self.messageQueue = queue.Queue()
-    # consistency metrics
-    self.numUpdatesSent = 0
-    self.numMessagesSent = 0
-    self.numUpdatesAcknowledged = 0
-    self.numMessagesAcknowledged = 0
+    self.thread_servicer = thread_servicer
+    # queue containing messages that need to be sent to the client
+    self.message_queue = queue.Queue()
+    self.message_queue_generator = StoppableQueueGenerator(self.message_queue)
 
     # expiration time of the session
-    self.expirationTime = time_utils.current_server_time()
+    self.expiration_time = time_utils.current_server_time()
 
     # length of a session in microseconds
-    self.sessionLength = 10*1000*1000 # 10 seconds
-
-    # lock used by the Acknowledge function to avoid concurrency issues
-    self.__acknowledgementLock = threading.Lock()
-
-    # indicates to this thread whether it should stop
-    self.__should_shutdown = False
+    self.session_length = 10*1000*1000 # 10 seconds
 
     # lock used by ReceiveUpdates
-    self.__receiveUpdatesLock = threading.Lock()
+    self.__receive_updates_lock = threading.Lock()
+
+    # the last commit number for which the client did not receive updates (one lower than the first for which they will receive an update at some point)
+    self.last_commit_number_not_received = None
   
   def Acknowledge(self, acknowledgement):
-    # First check if locking is necessary
-    if acknowledgement.numUpdatesReceived > self.numUpdatesAcknowledged or acknowledgement.numMessagesReceived > self.numMessagesAcknowledged:
-      # acquire the lock to avoid concurrency issues
-      with self.__acknowledgementLock:
-        # take the maximum number of updates acknowledged because the acknowledgements are not guaranteed to arrive in the correct order
-        self.numUpdatesAcknowledged = max(acknowledgement.numUpdatesReceived, self.numUpdatesAcknowledged)
-        self.numMessagesAcknowledged = max(acknowledgement.numMessagesReceived, self.numMessagesAcknowledged)
+    self.acknowledge_upto(acknowledgement.numMessagesReceived)
   
+  def _after_acknowledge(self):
+    self.acknowledged_count + self.last_commit_number_not_received
+
   # Triggers a shutdown of the active thread in this session
   def trigger_shutdown(self):
-    self.__should_shutdown = True
-    try:
-      self.messageQueue.put_nowait(None)
-    except:
-      # queue is apparently full so no need to add new elements
-      pass
-
+    self.message_queue_generator.stop()
 
   def ReceiveUpdates(self):
-    # acquire the lock to ensure that only one such connection exists per session
+    # acquire the lock to ensure that only one such connection exists per session at a time
     # the lock is never released
-    if not self.__receiveUpdatesLock.acquire(False):
+    if not self.__receive_updates_lock.acquire(False):
       return
     
-    # for every message in the queue
-    while True:
-      message = self.messageQueue.get() # blocks until there are elements in the queue
+    for message in self.message_queue_generator.generate(): # blocks until items appear in the queue
+      # automatically acknowledge messages if the previous expiration time is exceeded
+      self.add_unacknowledged(message.acknowledgeable)
+      self.set_auto_acknowledge(message.acknowledgeable, self.expiration_time)
 
-      # A None in the queue indicates to this thread that it should stop
-      if self.__should_shutdown:
-        break
-        
+      # for consistency, we do not return messages before last_commit_number_not_received and all messages after it
+      if message.message.commit_number <= self.last_commit_number_not_received:
+        message.acknowledgeable.acknowledge()
+        continue
+
+      # postpone the expiration time
+      self.expiration_time = time_utils.current_server_time() + self.session_length
+
       # construct an update message
-      update = message_mod.Update(self.sessionLength)
-      update.add_message(message)
+      update = message_mod.Update(self.expiration_time)
+      if message is not None:
+        update.add_message(message.message)
       print("Sending")
 
-      self.numUpdatesSent += 1
-      self.numMessagesSent += 1
-
-      # send it to the client
+      # write the update to the client
       yield update.to_chat_pb2()
+    
+    self.__receive_updates_lock.release()
 
+  def _on_session_expired(self):
+    pass
 
-  def is_session_expired(self):
-    return time_utils.current_server_time() > self.expirationTime
+  def __check_session_expired(self):
+    if self.has_session_expired():
+      self._on_session_expired()
+
+  def has_session_expired(self):
+    return time_utils.current_server_time() > self.expiration_time
+
+  def commit(self):
+    self.last_commit_number_not_received = self.thread_servicer.last_commit_number
+    self.thread_servicer.session_store.add(self)
