@@ -2,6 +2,8 @@ import os
 import time
 import sys
 import threading
+import queue
+import csv
 
 from time import gmtime, strftime
 import datetime
@@ -19,8 +21,16 @@ class Client:
         self.current_thread = None
         self.global_uuid = None
 
+        with open('client_log.csv', 'w', newline='') as file:
+            logger = csv.writer(file)
+            # action: 0 = message sent, 1 = message received, 2 = session expired
+            logger.writerow(['timestamp', 'session_id', 'action'])
+
+        self.message_queue = queue.Queue()
+        self.start_sender()
+
         # Key: session uuid hex
-        # Value: dict(session, messages_sent, messages_received updates_received)
+        # Value: dict(session, messages_sent, messages_received, updates_received, expiration_timer)
         self.sessions = {}
 
     def connect(self, thread=None):
@@ -36,12 +46,24 @@ class Client:
                 time.sleep(5)
                 print('Retrying...')
 
-        self.sessions[res.session.uuid.hex] = {'session': res.session, 'messages_sent': 0, 'messages_received': 0, 'updates_received': 0}
+        self.sessions[res.session.uuid.hex] = {'session': res.session, 'messages_sent': 0, 'messages_received': 0, 'updates_received': 0, 'expiration_timer': None}
         self.current_thread = res.session.thread.uuid.hex
         if thread == self.default_thread:
             self.global_uuid = self.current_thread
         print('Listening to new thread')
         self.start_listening(res.session)
+
+    def start_sender(self):
+        threading.Thread(target=self._sender, daemon=True).start()
+
+    def _sender(self):
+        for status in self.connection.SendMessages(self.__open_messages()):
+            print(status.statusCode)
+
+    def __open_messages(self):
+        while True:
+            message = self.message_queue.get()
+            yield message
 
     def start_listening(self, session):
         threading.Thread(target=self._listen, args=(session,), daemon=True).start()
@@ -49,6 +71,8 @@ class Client:
     def _listen(self, session):
         # Get server updates
         for update in self.connection.ReceiveUpdates(session):
+            # Log update
+            self.log(session.uuid.hex, 1)
             # Handle update
             self.handle_update(session, update)
             # Acknowledge
@@ -61,6 +85,10 @@ class Client:
             timestamp = self.connection.Acknowlegde(acknowledgement)
 
     def handle_update(self, session, update):
+        current_time = self.current_time()
+        expiration_time = (update.expirationTime.timestamp - current_time) / 1000000
+        self.session_expiration_warning(session.uuid.hex, expiration_time)
+
         self.sessions[session.uuid.hex]['updates_received'] += 1
 
         for msg in update.message:
@@ -73,7 +101,7 @@ class Client:
         thread = str(msg.thread.uuid.hex)
         id = str(msg.uuid.hex)
         suffix = ''
-        if thread == '00000000000000000000000000000000':
+        if thread == self.global_uuid:
             thread = 'global'
             suffix = ' | ' + id
 
@@ -97,7 +125,8 @@ class Client:
                 self.connect(thread)
 
         # Send message to server
-        s = self.sessions[self.thread_to_session(self.current_thread)]
+        s_id = self.thread_to_session(self.current_thread)
+        s = self.sessions[s_id]
         s['messages_sent'] += 1
         acknowledgement = chat_pb2.Acknowledgement(
             session = s['session'],
@@ -110,8 +139,30 @@ class Client:
             contents=msg,
             timestamp=chat_pb2.ServerTime(timestamp=self.current_time())
         )
-        status = self.connection.SendMessage(msg_obj)
-        print('Sent message status: ' + str(status.statusCode) + '\n')
+        self.message_queue.put(msg_obj)
+        self.log(s_id, 0)
+
+    def session_expiration_warning(self, session_id, time):
+        if self.sessions[session_id]['expiration_timer']:
+            timer = self.sessions[session_id]['expiration_timer']
+            timer.cancel()
+        timer = threading.Timer(time, self._show_session_expiration, [session_id])
+        self.sessions[session_id]['expiration_timer'] = timer
+        timer.start()
+
+    def _show_session_expiration(self, id):
+        self.log(id, 2)
+        print('Consistency not guaranteed for session: ' + str(id))
+
+    def log(self, session, action):
+        '''
+        action: 0 = message sent, 1 = message received, 2 = session expired
+        '''
+        time = self.current_time()
+        with open('client_log.csv', 'a', newline='') as file:
+            logger = csv.writer(file)
+            # action: 0 = message sent, 1 = message received, 2 = session expired
+            logger.writerow([time, session, action])
 
     def current_time(self):
         return int(round(time.time() * 1000 * 1000))
