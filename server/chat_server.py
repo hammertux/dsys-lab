@@ -154,8 +154,8 @@ class ThreadServicer(AcknowledgementTracker):
   def generate_commit_number(self):
     self.last_commit_number = 1
     while True:
-      yield self.last_commit_number + 1
       self.last_commit_number += 1
+      yield self.last_commit_number
 
   # called right after a message is committed
   # no other messages will be committed until this function completes
