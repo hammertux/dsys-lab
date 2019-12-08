@@ -30,10 +30,20 @@ def create_connection_response(currentTime, session, thread_uuid):
   return result
 
 class ThreadConfiguration:
-  def __init__(self, max_numerical_error, max_order_error, max_staleness):
+  def __init__(self, max_numerical_error, max_order_error, max_staleness, session_length = None, session_refresh_time = None):
     self.max_numerical_error = max_numerical_error
     self.max_order_error = max_order_error
     self.max_staleness = max_staleness
+    self.session_length = session_length if session_length is not None else self.max_staleness
+    if self.session_length > self.max_staleness:
+      raise ValueError("Session length cannot be longer than max staleness")
+    self.session_refresh_time = session_refresh_time if session_refresh_time is not None else (self.session_length/2)
+    if self.session_refresh_time > self.session_length:
+      raise ValueError("Session refresh time cannot be longer than the session length")
+  
+  @staticmethod
+  def get_default(cls):
+    return ThreadConfiguration(100, 10, 10, 10, 5)
 
 """Implements ChatServerServicer. This class contains all the procedures that can be accessed by RPC's.
 It delegates most task to the thread specific servicer"""
@@ -114,6 +124,8 @@ class ThreadServicer(AcknowledgementTracker):
     self.commit_number_generator = itertools.count()
     self.last_commit_number = next(self.commit_number_generator)
     self.max_staleness_in_send_message = thread_configuration.max_staleness * 1000 * 1000
+    self.session_length = thread_configuration.session_length # note that the session length can be at most the value of max staleness, but it could be shorter
+    self.session_refresh_time = thread_configuration.session_refresh_time # this value needs to be shorter than the session length to take into account that the message is not received immediately
 
   def _after_acknowledge(self, count):
     self.numerical_error_limiter.decrease_numerical_error_by(count)
@@ -186,6 +198,7 @@ class ThreadServicer(AcknowledgementTracker):
     # if the message could not be committed due to the numerical error being too high
     except NumericalError:
       return self.__create_numerical_error_message_status()
+    # if the message could not be committed due to the order error being too high
     except OrderError:
       return self.__create_order_error_message_status()
     # if the message could not be committed due to the message having arrived too late
