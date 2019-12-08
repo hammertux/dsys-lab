@@ -34,8 +34,9 @@ class TimedSession:
   def __init__(self, session_length, refresh_time):
     self.session_length = session_length
     self.refresh_time = refresh_time
-    self.expiration_time = time_utils.current_server_time() + self.session_length
+    self.expiration_time = time_utils.current_server_time()
     self.lock = threading.Lock()
+    self.extend()
 
   def extend(self):
     with self.lock:
@@ -43,7 +44,8 @@ class TimedSession:
       if new_expiration_time < self.expiration_time:
         return
       self.expiration_time = new_expiration_time
-      self.timer = threading.Timer(new_expiration_time - self.session_length + self.refresh_time, self._auto_extend)
+      self.timer = threading.Timer(time_utils.to_python_time(self.refresh_time), self._auto_extend)
+      self.timer.start()
   
   def _auto_extend(self):
     self.extend()
@@ -51,7 +53,6 @@ class TimedSession:
 class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession):
   def __init__(self, thread_servicer, name):
     AcknowledgementTracker.__init__(self)
-    TimedSession.__init__(self, int(thread_servicer.session_length * 1000 * 1000), int(thread_servicer.session_refresh_time * 1000 * 1000))
     # uuid of the session
     self.uuid = uuid.uuid4()
     self.name = name
@@ -59,13 +60,13 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
     # queue containing messages that need to be sent to the client
     self.message_queue = queue.Queue()
     self.message_queue_generator = StoppableQueueGenerator(self.message_queue)
+    TimedSession.__init__(self, int(thread_servicer.session_length * 1000 * 1000), int(thread_servicer.session_refresh_time * 1000 * 1000))
 
     # lock used by ReceiveUpdates
     self.__receive_updates_lock = threading.Lock()
 
     # the last commit number for which the client did not receive updates (one lower than the first for which they will receive an update at some point)
-    self.last_commit_number_not_received = None
-  
+    self.last_commit_number_not_received = None  
   def Acknowledge(self, acknowledgement):
     self.acknowledge_upto(acknowledgement.numMessagesReceived)
   

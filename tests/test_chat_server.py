@@ -33,6 +33,8 @@ class TestBasicServerFunctionality(unittest.TestCase):
     message_status = self.servicer.SendMessage(sentMessage, None)
     self.assertEqual(0, message_status.statusCode)
     received_update = next(receive_response)
+    while len(received_update.message) == 0:
+      received_update = next(receive_response)
     self.assertEqual(sentMessage.contents, received_update.message[0].contents)
     self.assertEqual("TestName", received_update.message[0].sender)
     self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session), None).timestamp)
@@ -119,3 +121,13 @@ class TestBasicServerFunctionality(unittest.TestCase):
       while len(received_update.message) == 0:
         received_update = next(receive_response)
       self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session, numMessagesReceived = i), None).timestamp)
+  
+  def test_auto_refresh(self):
+    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10000, 10, 0.1))
+    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10000, 10, 0.1))
+    connectionResponse = self.servicer.Connect(self.connectionRequest, None)
+    connectionResponse = self.servicer.Connect(self.connectionRequest, None)
+    receive_response = self.servicer.ReceiveUpdates(connectionResponse.session, None)
+    for i in range(0,2):
+      received_update = next(receive_response)
+      self.assertEqual(0, len(received_update.message))
