@@ -1,4 +1,4 @@
-from threading import Lock, Thread, Event
+from threading import Lock, RLock, Thread, Event
 from queue import deque
 from time import time
 from .deadline_timer import DeadlineTimer
@@ -8,19 +8,26 @@ class Acknowledgeable:
     self.is_acknowledged = False
     self.auto_acknowledge_time = None
     self.timer = None
+    self.lock = Lock()
+    self.after_acknowledge = lambda : None
   
   def acknowledge(self):
     self.is_acknowledged = True
     if self.timer is not None:
       self.timer.cancel()
+    self.after_acknowledge()
   
   def set_on_auto_acknowledge(self, function):
     self.__on_auto_acknowledge = function
   
-  def set_auto_acknowledge(self, time):
-    self.auto_acknowledge_time = time
+  def set_auto_acknowledge(self, auto_acknowledge_time):
+    with self.lock:
+      if self.auto_acknowledge_time is not None and auto_acknowledge_time < self.auto_acknowledge_time:
+        return
+      self.auto_acknowledge_time = auto_acknowledge_time
     if not self.is_acknowledged:
-      self.timer = DeadlineTimer(time, self.__on_auto_acknowledge)
+      self.timer = DeadlineTimer(auto_acknowledge_time, self.__on_auto_acknowledge)
+      self.timer.start()
 
 class MultiAcknowledgeable(Acknowledgeable):
   def __init__(self, acknowledgements_needed):
@@ -48,13 +55,14 @@ class ProxyAcknowledgeable(Acknowledgeable):
 
 class AcknowledgementTracker:
   def __init__(self):
-    self.lock = Lock()
+    self.lock = RLock()
     self.unacknowledged_count = 0
     self.acknowledged_count = 0
     self.queue = deque()
   
   def add_unacknowledged(self, acknowledgeable):
     with self.lock:
+      acknowledgeable.set_on_auto_acknowledge(self.do_auto_acknowledge)
       self.unacknowledged_count += 1
       self.queue.append(acknowledgeable)
   
@@ -66,14 +74,25 @@ class AcknowledgementTracker:
       raise ValueError("Too many acknowledgements")
     self.queue[0].acknowledge()
     if self.queue[0].is_acknowledged:
-      self.queue.popleft()
-      self.unacknowledged_count -= 1
-      self.acknowledged_count += 1
+      self.__update_stats()
   
   def acknowledge(self):
     with self.lock:
       old_unacknowledged_count = self.unacknowledged_count
       self._do_acknowledge()
+      new_unacknowledged_count = self.unacknowledged_count
+      self._after_acknowledge(old_unacknowledged_count - new_unacknowledged_count)
+  
+  def __update_stats(self):
+    while len(self.queue) > 0 and self.queue[0].is_acknowledged:
+      self.queue.popleft()
+      self.unacknowledged_count -= 1
+      self.acknowledged_count += 1
+    
+  def on_acknowledge(self):
+    with self.lock:
+      old_unacknowledged_count = self.unacknowledged_count
+      self.__update_stats()
       new_unacknowledged_count = self.unacknowledged_count
       self._after_acknowledge(old_unacknowledged_count - new_unacknowledged_count)
   
@@ -89,12 +108,10 @@ class AcknowledgementTracker:
       self._after_acknowledge(old_unacknowledged_count - new_unacknowledged_count)
 
   def set_auto_acknowledge(self, acknowledgeable, time):
-    with self.lock:
-      acknowledgeable.set_on_auto_acknowledge(self.do_auto_acknowledge)
-      acknowledgeable.set_auto_acknowledge(time)
+    acknowledgeable.set_auto_acknowledge(time)
 
   def acknowledge_upto(self, new_acknowledged_count):
-    if new_acknowledged_count > self.acknowledged_count:
+    if new_acknowledged_count <= self.acknowledged_count:
       return
     with self.lock:
       while new_acknowledged_count > self.acknowledged_count:

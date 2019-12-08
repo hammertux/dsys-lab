@@ -38,14 +38,15 @@ class TestBasicServerFunctionality(unittest.TestCase):
     self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session), None).timestamp)
 
   def test_numerical_error(self):
-    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10, 10000, 0.1))
-    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10, 10000, 0.1))
+    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10, 10000, 1))
+    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10, 10000, 1))
+    timestamp = int(round(time.time() * 1000 * 1000))
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     receive_response = self.servicer.ReceiveUpdates(connectionResponse.session, None)
     sentMessage = chat_pb2.SentMessage()
     sentMessage.contents = "Test123"
-    sentMessage.timestamp.timestamp = int(round(time.time() * 1000 * 1000))
+    sentMessage.timestamp.timestamp = timestamp
     sentMessage.acknowledgement.session.uuid.hex = connectionResponse.session.uuid.hex
     sentMessage.acknowledgement.session.thread.uuid.hex = connectionResponse.session.thread.uuid.hex
     for i in range(0,11):
@@ -56,6 +57,30 @@ class TestBasicServerFunctionality(unittest.TestCase):
         break
       self.assertEqual(chat_pb2.MessageStatusCode.OK, message_status.statusCode)
       received_update = next(receive_response)
+      while len(received_update.message) == 0:
+        received_update = next(receive_response)
+      self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session, numMessagesReceived = i), None).timestamp)
+  
+  def test_numerical_error_recovery(self):
+    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10, 10000, 0.1))
+    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10, 10000, 0.1))
+    connectionResponse = self.servicer.Connect(self.connectionRequest, None)
+    connectionResponse = self.servicer.Connect(self.connectionRequest, None)
+    receive_response = self.servicer.ReceiveUpdates(connectionResponse.session, None)
+    sentMessage = chat_pb2.SentMessage()
+    sentMessage.contents = "Test123"
+    sentMessage.acknowledgement.session.uuid.hex = connectionResponse.session.uuid.hex
+    sentMessage.acknowledgement.session.thread.uuid.hex = connectionResponse.session.thread.uuid.hex
+    for i in range(0,11):
+      if i == 10:
+        time.sleep(0.1)
+      sentMessage.acknowledgement.numMessagesSent = i
+      sentMessage.timestamp.timestamp = int(round(time.time() * 1000 * 1000))
+      message_status = self.servicer.SendMessage(sentMessage, None)
+      self.assertEqual(chat_pb2.MessageStatusCode.OK, message_status.statusCode)
+      received_update = next(receive_response)
+      while len(received_update.message) == 0:
+        received_update = next(receive_response)
       self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session, numMessagesReceived = i), None).timestamp)
 
   def test_staleness(self):
@@ -91,4 +116,6 @@ class TestBasicServerFunctionality(unittest.TestCase):
         break
       self.assertEqual(chat_pb2.MessageStatusCode.OK, message_status.statusCode)
       received_update = next(receive_response)
+      while len(received_update.message) == 0:
+        received_update = next(receive_response)
       self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session, numMessagesReceived = i), None).timestamp)

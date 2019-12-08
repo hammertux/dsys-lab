@@ -34,7 +34,7 @@ class TimedSession:
   def __init__(self, session_length, refresh_time):
     self.session_length = session_length
     self.refresh_time = refresh_time
-    self.expiration_time = time_utils.current_server_time()
+    self.expiration_time = time_utils.current_server_time() + self.session_length
     self.lock = threading.Lock()
 
   def extend(self):
@@ -51,7 +51,7 @@ class TimedSession:
 class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession):
   def __init__(self, thread_servicer, name):
     AcknowledgementTracker.__init__(self)
-    TimedSession.__init__(self, thread_servicer.session_length, thread_servicer.session_refresh_time)
+    TimedSession.__init__(self, int(thread_servicer.session_length * 1000 * 1000), int(thread_servicer.session_refresh_time * 1000 * 1000))
     # uuid of the session
     self.uuid = uuid.uuid4()
     self.name = name
@@ -69,8 +69,8 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
   def Acknowledge(self, acknowledgement):
     self.acknowledge_upto(acknowledgement.numMessagesReceived)
   
-  def _after_acknowledge(self):
-    self.acknowledged_count + self.last_commit_number_not_received
+  def _after_acknowledge(self, count):
+    pass
   
   def _auto_extend(self):
     self.message_queue.put(None)
@@ -90,7 +90,7 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
         if message is not None:
           # track the acknowledgements of this message
           self.add_unacknowledged(message.acknowledgeable)
-          self.set_auto_acknowledge(message.acknowledgeable, self.expiration_time)
+          self.set_auto_acknowledge(message.acknowledgeable, time_utils.to_python_time(self.expiration_time))
           # for consistency, we do not return messages before last_commit_number_not_received and all messages after it
           if message.message.commit_number <= self.last_commit_number_not_received:
             message.acknowledgeable.acknowledge()

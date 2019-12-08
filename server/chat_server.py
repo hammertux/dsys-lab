@@ -37,7 +37,7 @@ class ThreadConfiguration:
     self.session_length = session_length if session_length is not None else self.max_staleness
     if self.session_length > self.max_staleness:
       raise ValueError("Session length cannot be longer than max staleness")
-    self.session_refresh_time = session_refresh_time if session_refresh_time is not None else (self.session_length/2)
+    self.session_refresh_time = session_refresh_time if session_refresh_time is not None else (self.session_length // 2)
     if self.session_refresh_time > self.session_length:
       raise ValueError("Session refresh time cannot be longer than the session length")
   
@@ -217,10 +217,15 @@ class ThreadServicer(AcknowledgementTracker):
       sessions = list(self.session_store.dict.values())
       # make sure acknowledgements of this message are tracked
       acknowledgeable = MultiAcknowledgeable(len(sessions))
+      acknowledgeable.after_acknowledge = self.on_acknowledge
       self.add_unacknowledged(acknowledgeable)
       # queue it for all sessions subscribed to this thread
       for session in sessions:
-        session.message_queue.put(SessionMessage(message, acknowledgeable))
+        expiration_time = session.expiration_time
+        session_message = SessionMessage(message, acknowledgeable)
+        session.add_unacknowledged(session_message.acknowledgeable)
+        session.message_queue.put(session_message)
+        session_message.acknowledgeable.set_auto_acknowledge(time_utils.to_python_time(expiration_time))
 
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10):

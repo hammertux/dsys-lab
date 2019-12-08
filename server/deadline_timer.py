@@ -4,6 +4,7 @@ from time import time
 """Timer that is guaranteed to run after the specified deadline (and not before)"""
 class DeadlineTimer(Thread):
   def __init__(self, deadline, function):
+    Thread.__init__(self)
     self.deadline = deadline
     self.is_cancelled_event = Event()
     self.function = function
