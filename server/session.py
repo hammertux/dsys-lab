@@ -89,13 +89,10 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
     try:
       for message in self.message_queue_generator.generate(): # blocks until items appear in the queue
         if message is not None:
-          # track the acknowledgements of this message
-          self.add_unacknowledged(message.acknowledgeable)
-          self.set_auto_acknowledge(message.acknowledgeable, time_utils.to_python_time(self.expiration_time))
           # for consistency, we do not return messages before last_commit_number_not_received and all messages after it
           if message.message.commit_number <= self.last_commit_number_not_received:
             message.acknowledgeable.acknowledge()
-            continue
+            message = None
 
         # postpone the expiration time if possible
         if self._can_extend():

@@ -26,6 +26,8 @@ class Acknowledgeable:
         return
       self.auto_acknowledge_time = auto_acknowledge_time
     if not self.is_acknowledged:
+      if self.timer is not None:
+        self.timer.cancel()
       self.timer = DeadlineTimer(auto_acknowledge_time, self.__on_auto_acknowledge)
       self.timer.start()
 
