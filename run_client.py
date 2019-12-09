@@ -20,8 +20,10 @@ if __name__ == "__main__":
     # Get ip
     ip = 'localhost'
     username = args[1]
-    port = 50051
+    port = 50050
     client = Client(username, ip, port)
+    channel = client.get_connection(client.default_thread)
+    client.create_server_connection(channel, client.default_thread)
     client.connect()
     print('Connected to server with session {}\nWelcome to the chat {}'.format(list(client.sessions)[0], client.username))
     run(client)

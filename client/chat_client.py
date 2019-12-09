@@ -4,6 +4,8 @@ import sys
 import threading
 import queue
 import csv
+import collections
+import uuid
 
 from time import gmtime, strftime
 import datetime
@@ -11,13 +13,37 @@ import datetime
 import grpc
 from proto import chat_pb2
 from proto import chat_pb2_grpc
+from proto import load_balancer_pb2
+from proto import load_balancer_pb2_grpc
 
 class Client:
+    '''
+    Params:
+        - Username
+        - Load balancer ip
+        - Load balancer port
+    '''
     def __init__(self, username, ip, port):
         self.username = username
-        self.channel = grpc.insecure_channel(ip + ':' + str(port))
-        self.connection = chat_pb2_grpc.ChatServerStub(self.channel)
-        self.default_thread = chat_pb2.Thread()
+
+        load_balancer_channel = grpc.insecure_channel(ip + ':' + str(port))
+        self.load_balancer_connection = load_balancer_pb2_grpc.LoadBalancerServerStub(load_balancer_channel)
+
+        # Key: Channel
+        # Value: Connection to that channel
+        self.connections = {}
+
+        # Key: Channel
+        # Value: List of thread uuid hex that belong to that server connection
+        self.connection_threads = {}
+
+        # Key: Channel
+        # Value: Message queue
+        self.message_queues = {}
+
+        # self.channel = grpc.insecure_channel(ip + ':' + str(port))
+        # self.connection = chat_pb2_grpc.ChatServerStub(self.channel)
+        self.default_thread = chat_pb2.Thread(uuid=chat_pb2.UUID(hex=uuid.UUID(int=0).hex))
         self.current_thread = None
         self.global_uuid = None
 
@@ -26,12 +52,20 @@ class Client:
             # action: 0 = message sent, 1 = message received, 2 = session expired
             logger.writerow(['timestamp', 'session_id', 'action'])
 
-        self.message_queue = queue.Queue()
-        self.start_sender()
-
         # Key: session uuid hex
         # Value: dict(session, messages_sent, messages_received, updates_received, expiration_timer)
         self.sessions = {}
+
+    def get_connection(self, thread):
+        info = self.load_balancer_connection.ConnectRequest(thread)
+        return info.ip + ':' + str(info.port)
+
+    def create_server_connection(self, channel, thread):
+        grpc_channel = grpc.insecure_channel(channel)
+        connection = chat_pb2_grpc.ChatServerStub(grpc_channel)
+        self.connections[channel] = connection
+        self.connection_threads[channel] = [thread.uuid.hex]
+        self.message_queues[channel] = queue.Queue()
 
     def connect(self, thread=None):
         while True:
@@ -39,12 +73,15 @@ class Client:
                 if thread == None:
                     thread = self.default_thread
                 connection_request = chat_pb2.ConnectionRequest(thread=thread, name=self.username)
-                res = self.connection.Connect(connection_request)
+                connection = self.thread_to_connection(thread.uuid.hex)
+                res = connection.Connect(connection_request)
                 break
             except:
                 print('Connection failed')
                 time.sleep(5)
                 print('Retrying...')
+
+        self.start_sender(connection)
 
         self.sessions[res.session.uuid.hex] = {'session': res.session, 'messages_sent': 0, 'messages_received': 0, 'updates_received': 0, 'expiration_timer': None}
         self.current_thread = res.session.thread.uuid.hex
@@ -53,24 +90,25 @@ class Client:
         print('Listening to new thread')
         self.start_listening(res.session)
 
-    def start_sender(self):
-        threading.Thread(target=self._sender, daemon=True).start()
+    def start_sender(self, connection):
+        threading.Thread(target=self._sender, args=(connection,), daemon=True).start()
 
-    def _sender(self):
-        for status in self.connection.SendMessages(self.__open_messages()):
+    def _sender(self, connection):
+        for status in connection.SendMessages(self.__open_messages(self.connection_to_channel(connection))):
             print(status.statusCode)
 
-    def __open_messages(self):
+    def __open_messages(self, channel):
         while True:
-            message = self.message_queue.get()
+            message = self.message_queues[channel].get()
             yield message
 
     def start_listening(self, session):
         threading.Thread(target=self._listen, args=(session,), daemon=True).start()
 
     def _listen(self, session):
+        connection = self.thread_to_connection(session.thread.uuid.hex)
         # Get server updates
-        for update in self.connection.ReceiveUpdates(session):
+        for update in connection.ReceiveUpdates(session):
             # Log update
             self.log(session.uuid.hex, 1)
             # Handle update
@@ -82,7 +120,7 @@ class Client:
                 numMessagesReceived = self.sessions[session.uuid.hex]['messages_received'],
                 numMessagesSent = self.sessions[session.uuid.hex]['messages_sent']
             )
-            timestamp = self.connection.Acknowlegde(acknowledgement)
+            timestamp = connection.Acknowlegde(acknowledgement)
 
     def handle_update(self, session, update):
         current_time = self.current_time()
@@ -111,6 +149,7 @@ class Client:
         # Get thread
         msg = user_input
         in_split = user_input.split(' ')
+        channel = None
         if len(in_split) > 1 and in_split[-2] == '|':
             self.current_thread = in_split[-1]
             if self.current_thread == 'global':
@@ -122,6 +161,14 @@ class Client:
             if not self.thread_to_session(self.current_thread):
                 uuid = chat_pb2.UUID(hex=str(self.current_thread))
                 thread = chat_pb2.Thread(uuid = uuid)
+
+                channel = self.get_connection(thread)
+
+                if channel not in self.connections.keys():
+                    self.create_server_connection(channel, thread.uuid.hex)
+                else:
+                    self.connection_threads[channel].append(thread.uuid.hex)
+
                 self.connect(thread)
 
         # Send message to server
@@ -139,7 +186,9 @@ class Client:
             contents=msg,
             timestamp=chat_pb2.ServerTime(timestamp=self.current_time())
         )
-        self.message_queue.put(msg_obj)
+        if not channel:
+            channel = self.connection_to_channel(self.thread_to_connection(self.current_thread))
+        self.message_queues[channel].put(msg_obj)
         self.log(s_id, 0)
 
     def session_expiration_warning(self, session_id, time):
@@ -174,6 +223,16 @@ class Client:
                 return k
         return None
 
+    def thread_to_connection(self, thread_uuid):
+        for channel, threads in self.connection_threads.items():
+            if thread_uuid in threads:
+                return self.connections[channel]
+
+    def connection_to_channel(self, connection):
+        for channel, c in self.connections.items():
+            if connection == c:
+                return channel
+
 def run(client):
     while True:
         message = input("")
@@ -189,8 +248,10 @@ if __name__ == "__main__":
     # Get ip
     ip = 'localhost'
     username = args[1]
-    port = 50051
+    port = 50050
     client = Client(username, ip, port)
+    channel = client.get_connection(client.default_thread)
+    client.create_server_connection(channel, client.default_thread)
     client.connect()
     print('Connected to server with session {}\nWelcome to the chat {}'.format(list(client.sessions)[0], client.username))
     run(client)
