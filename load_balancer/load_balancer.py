@@ -66,7 +66,7 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         self.threads[channel] = []
         self.message_queues[channel] = queue.Queue()
         # Add server to request stream
-        print(connectionInfo)
+        print('New server stored:', connectionInfo)
         return self._requester(channel)
 
     def sendLoad(self, Load, context):
@@ -74,6 +74,8 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         Add load that chat server sent to dictionary and return response
         """
         self.loads[Load.info.ip + ':' + Load.info.port] = Load.cpuLoad
+        print('Loads:')
+        print(self.loads)
         return load_balancer_pb2.Status(status=load_balancer_pb2.StatusCode.SUCCESS)
 
     def ConnectRequest(self, Thread, context):
@@ -92,14 +94,13 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
 
             # Create thread on connection with lowest load
             channel = self.get_lowest_load()
-            print('lowest: ', channel)
             self.message_queues[channel].put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.CREATETHREAD, thread=Thread))
 
             # Add connection - thread mapping
             self.threads[channel].append(Thread.uuid.hex)
 
-        self.loads = {}
-        return self.connections[channel]
+            self.loads = {}
+            return self.connections[channel]
 
 server = None
 def serve(block = False):

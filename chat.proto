@@ -103,7 +103,7 @@ message SentMessage{
   // Time the message was sent
   // The client guarantees that the message was sent after this time
   // (taking into account that received server times could be inaccurate, although the client can make some assumptions about the server's clock)
-  ServerTime timestamp = 3; 
+  ServerTime timestamp = 3;
 }
 
 // Represents an update from the server to the client

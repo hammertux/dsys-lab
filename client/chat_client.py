@@ -165,7 +165,7 @@ class Client:
                 channel = self.get_connection(thread)
 
                 if channel not in self.connections.keys():
-                    self.create_server_connection(channel, thread.uuid.hex)
+                    self.create_server_connection(channel, thread)
                 else:
                     self.connection_threads[channel].append(thread.uuid.hex)
 
