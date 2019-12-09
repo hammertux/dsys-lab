@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\x13load_balancer.proto\x1a\nchat.proto\"K\n\x04Load\x12\x0f\n\x07\x63puLoad\x18\x01 \x01(\x03\x12\x13\n\x0bnetworkLoad\x18\x02 \x01(\x03\x12\x1d\n\x04info\x18\x03 \x01(\x0b\x32\x0f.ConnectionInfo\"%\n\x06Status\x12\x1b\n\x06status\x18\x01 \x01(\x0e\x32\x0b.StatusCode\">\n\x07Request\x12\x1a\n\x04type\x18\x01 \x01(\x0e\x32\x0c.RequestType\x12\x17\n\x06thread\x18\x02 \x01(\x0b\x32\x07.Thread\"*\n\x0e\x43onnectionInfo\x12\n\n\x02ip\x18\x01 \x01(\t\x12\x0c\n\x04port\x18\x02 \x01(\t*$\n\nStatusCode\x12\t\n\x05\x45RROR\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01*)\n\x0bRequestType\x12\x10\n\x0c\x43REATETHREAD\x10\x00\x12\x08\n\x04LOAD\x10\x01\x32\x92\x01\n\x12LoadBalancerServer\x12\x30\n\x0freceiveRequests\x12\x0f.ConnectionInfo\x1a\x08.Request\"\x00\x30\x01\x12\x1c\n\x08sendLoad\x12\x05.Load\x1a\x07.Status\"\x00\x12,\n\x0e\x43onnectRequest\x12\x07.Thread\x1a\x0f.ConnectionInfo\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x13load_balancer.proto\x1a\nchat.proto\"K\n\x04Load\x12\x0f\n\x07\x63puLoad\x18\x01 \x01(\x02\x12\x13\n\x0bnetworkLoad\x18\x02 \x01(\x02\x12\x1d\n\x04info\x18\x03 \x01(\x0b\x32\x0f.ConnectionInfo\"%\n\x06Status\x12\x1b\n\x06status\x18\x01 \x01(\x0e\x32\x0b.StatusCode\">\n\x07Request\x12\x1a\n\x04type\x18\x01 \x01(\x0e\x32\x0c.RequestType\x12\x17\n\x06thread\x18\x02 \x01(\x0b\x32\x07.Thread\"*\n\x0e\x43onnectionInfo\x12\n\n\x02ip\x18\x01 \x01(\t\x12\x0c\n\x04port\x18\x02 \x01(\t*$\n\nStatusCode\x12\t\n\x05\x45RROR\x10\x00\x12\x0b\n\x07SUCCESS\x10\x01*)\n\x0bRequestType\x12\x10\n\x0c\x43REATETHREAD\x10\x00\x12\x08\n\x04LOAD\x10\x01\x32\x92\x01\n\x12LoadBalancerServer\x12\x30\n\x0freceiveRequests\x12\x0f.ConnectionInfo\x1a\x08.Request\"\x00\x30\x01\x12\x1c\n\x08sendLoad\x12\x05.Load\x1a\x07.Status\"\x00\x12,\n\x0e\x43onnectRequest\x12\x07.Thread\x1a\x0f.ConnectionInfo\"\x00\x62\x06proto3')
   ,
   dependencies=[chat__pb2.DESCRIPTOR,])
 
@@ -88,15 +88,15 @@ _LOAD = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='cpuLoad', full_name='Load.cpuLoad', index=0,
-      number=1, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
+      number=1, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='networkLoad', full_name='Load.networkLoad', index=1,
-      number=2, type=3, cpp_type=2, label=1,
-      has_default_value=False, default_value=0,
+      number=2, type=2, cpp_type=6, label=1,
+      has_default_value=False, default_value=float(0),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),

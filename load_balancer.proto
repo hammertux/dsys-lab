@@ -16,8 +16,8 @@ service LoadBalancerServer{
 }
 
 message Load{
-    int64 cpuLoad = 1;
-    int64 networkLoad = 2;
+    float cpuLoad = 1;
+    float networkLoad = 2;
     ConnectionInfo info = 3;
 }
 
