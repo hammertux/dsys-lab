@@ -10,6 +10,13 @@ class NumericalErrorLimiter(ConsistencyRequirement):
     self.max_numerical_error = max_numerical_error
     self.at_maximum_condition = Condition()
   
+  def set_maximum(self, max_numerical_error):
+    with self.at_maximum_condition:
+      old_max_numerical_error = max_numerical_error
+      self.max_numerical_error = max_numerical_error
+      if max_numerical_error > old_max_numerical_error:
+        self.at_maximum_condition.notify(max_numerical_error - old_max_numerical_error)
+
   def not_at_maximum(self):
     return self.numerical_error < self.max_numerical_error
   
@@ -39,4 +46,4 @@ class NumericalErrorLimiter(ConsistencyRequirement):
       return
     with self.at_maximum_condition:
       self.numerical_error -= amount
-      self.at_maximum_condition.notify(amount)
+      self.at_maximum_condition.notify(min(amount, self.max_numerical_error - self.numerical_error))

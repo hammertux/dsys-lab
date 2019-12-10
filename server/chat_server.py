@@ -22,6 +22,7 @@ from .numerical_error import NumericalErrorLimiter, NumericalError
 from .order_error import OrderErrorLimiter, OrderError
 from .queue_generator import QueueGenerator
 import itertools
+from .thread_configuration import ThreadConfiguration, SimpleLoadBasedThreadConfigurationPolicy
 
 def string_to_uuid_or_default(string, default):
   try:
@@ -35,43 +36,29 @@ def create_connection_response(currentTime, session, thread_uuid):
   result.session.thread.uuid.hex = thread_uuid.hex
   return result
 
-class ThreadConfiguration:
-  def __init__(self, max_numerical_error, max_order_error, max_staleness, session_length = None, session_refresh_time = None):
-    self.max_numerical_error = max_numerical_error
-    self.max_order_error = max_order_error
-    self.max_staleness = max_staleness
-    self.session_length = session_length if session_length is not None else self.max_staleness
-    if self.session_length > self.max_staleness:
-      raise ValueError("Session length cannot be longer than max staleness")
-    self.session_refresh_time = session_refresh_time if session_refresh_time is not None else (self.session_length // 2)
-    if self.session_refresh_time > self.session_length:
-      raise ValueError("Session refresh time cannot be longer than the session length")
-
-  @staticmethod
-  def get_default(cls):
-    return ThreadConfiguration(100, 10, 10, 10, 5)
-
 """Implements ChatServerServicer. This class contains all the procedures that can be accessed by RPC's.
 It delegates most task to the thread specific servicer"""
 class ChatServicer(chat_pb2_grpc.ChatServerServicer):
-  def __init__(self, thread_configuration):
+  def __init__(self, thread_configuration_policy, thread_configuration_policy_for_default_thread = None):
+    if thread_configuration_policy_for_default_thread is None:
+      thread_configuration_policy_for_default_thread = thread_configuration_policy
     self.threads = {}
     self.default_uuid = uuid.UUID(int=0)
-    self.thread_configuration = thread_configuration
+    self.thread_configuration_policy = thread_configuration_policy
+    self.thread_configuration_policy_for_default_thread = thread_configuration_policy_for_default_thread
 
 
-  def add_default_thread(self, thread_configuration):
-    self.add_thread(self.default_uuid, thread_configuration)
-
-
-  def add_thread(self, uuid, thread_configuration):
-    self.threads[uuid] = ThreadServicer(uuid, thread_configuration)
+  def add_thread(self, uuid):
+    policy = self.thread_configuration_policy_for_default_thread if uuid == self.default_uuid else self.thread_configuration_policy
+    self.threads[uuid] = ThreadServicer(uuid, policy.get_configuration())
+    policy.add_on_change(self.threads[uuid].update_configuration)
+    self.threads[uuid].update_configuration(policy.get_configuration())
     self.threads[uuid].start_broadcasting()
 
 
   def __get_or_create_thread(self, uuid):
     if (not uuid in self.threads):
-      self.add_thread(uuid, self.thread_configuration)
+      self.add_thread(uuid)
     return self.threads[uuid]
 
 
@@ -119,6 +106,7 @@ class ThreadServicer(AcknowledgementTracker):
     AcknowledgementTracker.__init__(self)
     self.session_store = SessionStore()
     self.uuid = uuid
+    self.thread_configuration = thread_configuration
     # the broadcast queue contains messages that still need to be broadcasted to individual threads
     # while using its lock, do not lock the commit queue (to avoid deadlocks)
     self.broadcast_queue = queue.Queue()
@@ -185,6 +173,16 @@ class ThreadServicer(AcknowledgementTracker):
     # this function is called while the commit queue is locked, so to avoid deadlock,
     # it is important that the broadcast queue lock is not in use by anyone trying to lock the commit queue
     self.broadcast_queue.put(message)
+  
+  def update_configuration(self, configuration):
+    self.thread_configuration = configuration
+    self.numerical_error_limiter.set_maximum(configuration.max_numerical_error)
+    self.order_error_limiter.set_maximum(configuration.max_order_error)
+    self.max_staleness_in_send_message = configuration.max_staleness * 1000 * 1000
+    self.session_length = configuration.session_length
+    self.session_refresh_time = configuration.session_refresh_time
+    for session in self.session_store.dict.values():
+      session.update_timed_session_configuration(self.session_length, self.session_refresh_time)
 
   def SendMessage(self, sentMessage):
     # convert the raw chat_pb2.SentMessage into a message_mod.Message instance
@@ -246,11 +244,16 @@ def _load_balancer_listener(load_balancer_connection, info):
         pass
 
 server = None
-def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10):
+def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10, load_check_interval = 5, load_threshold = 1):
   global server
   # Start server
   server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=10))
-  servicer = ChatServicer(ThreadConfiguration(max_numerical_error_other, max_order_error_other, max_staleness_other))
+  
+  normal_thread_configuration = ThreadConfiguration(max_numerical_error_other, max_order_error_other, max_staleness_other)
+  global_thread_configuration = ThreadConfiguration(max_numerical_error_global, max_order_error_global, max_staleness_other)
+  normal_policy = SimpleLoadBasedThreadConfigurationPolicy(load_check_interval, load_threshold, normal_thread_configuration)
+  global_policy = SimpleLoadBasedThreadConfigurationPolicy(load_check_interval, load_threshold, global_thread_configuration)
+  servicer = ChatServicer(normal_policy, global_policy)
   chat_pb2_grpc.add_ChatServerServicer_to_server(servicer, server)
 
   port = 5005 + random.randint(0, 9)

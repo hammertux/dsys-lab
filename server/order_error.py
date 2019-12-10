@@ -9,6 +9,9 @@ class OrderErrorLimiter(ConsistencyRequirement):
     self.last_commit_number = None
     self.last_commit_number_condition = Condition()
   
+  def set_maximum(self, max_order_error):
+    self.max_order_error = max_order_error
+  
   def calculate_order_error(self, write):
     if self.last_commit_number is None:
       return 0

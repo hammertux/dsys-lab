@@ -2,14 +2,16 @@ from server import chat_server as chat_server_mod
 from proto import chat_pb2
 import unittest
 import time
+from server.thread_configuration import ThreadConfiguration, ThreadConfigurationPolicy
 from pprint import pprint
 
 class TestBasicServerFunctionality(unittest.TestCase):
   chat_server = None
 
   def setUp(self):
-    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(2, 1, 0.1))
-    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10, 5, 0.1))
+    self.thread_configuration = ThreadConfiguration(2, 1, 0.1)
+    self.thread_configuration_policy = ThreadConfigurationPolicy(self.thread_configuration)
+    self.servicer = chat_server_mod.ChatServicer(self.thread_configuration_policy)
     self.connectionRequest = chat_pb2.ConnectionRequest(name="TestName")
 
   def test_server_gives_out_different_session_ids(self):
@@ -40,8 +42,7 @@ class TestBasicServerFunctionality(unittest.TestCase):
     self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session), None).timestamp)
 
   def test_numerical_error(self):
-    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10, 10000, 1))
-    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10, 10000, 1))
+    self.servicer = chat_server_mod.ChatServicer(ThreadConfigurationPolicy(ThreadConfiguration(10, 10000, 1)))
     timestamp = int(round(time.time() * 1000 * 1000))
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
@@ -64,8 +65,7 @@ class TestBasicServerFunctionality(unittest.TestCase):
       self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session, numMessagesReceived = i), None).timestamp)
   
   def test_numerical_error_recovery(self):
-    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10, 10000, 0.1))
-    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10, 10000, 0.1))
+    self.servicer = chat_server_mod.ChatServicer(ThreadConfigurationPolicy(ThreadConfiguration(10, 10000, 0.1)))
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     receive_response = self.servicer.ReceiveUpdates(connectionResponse.session, None)
@@ -87,8 +87,7 @@ class TestBasicServerFunctionality(unittest.TestCase):
 
   def test_staleness(self):
     max_staleness = 0.1
-    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10, 10000, max_staleness))
-    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10, 10000, max_staleness))
+    self.servicer = chat_server_mod.ChatServicer(ThreadConfigurationPolicy(ThreadConfiguration(10, 10000, max_staleness)))
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     receive_response = self.servicer.ReceiveUpdates(connectionResponse.session, None)
@@ -101,8 +100,7 @@ class TestBasicServerFunctionality(unittest.TestCase):
     self.assertEqual(chat_pb2.MessageStatusCode.STALENESS, message_status.statusCode)
   
   def test_order_error(self):
-    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10000, 10, 0.1))
-    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10000, 10, 0.1))
+    self.servicer = chat_server_mod.ChatServicer(ThreadConfigurationPolicy(ThreadConfiguration(10000, 10, 0.1)))
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     receive_response = self.servicer.ReceiveUpdates(connectionResponse.session, None)
@@ -123,8 +121,7 @@ class TestBasicServerFunctionality(unittest.TestCase):
       self.assertIsNotNone(self.servicer.Acknowlegde(chat_pb2.Acknowledgement(session=connectionResponse.session, numMessagesReceived = i), None).timestamp)
   
   def test_auto_refresh(self):
-    self.servicer = chat_server_mod.ChatServicer(chat_server_mod.ThreadConfiguration(10000, 10, 0.1))
-    self.servicer.add_default_thread(chat_server_mod.ThreadConfiguration(10000, 10, 0.1))
+    self.servicer = chat_server_mod.ChatServicer(ThreadConfigurationPolicy(ThreadConfiguration(10000, 10, 0.1)))
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     connectionResponse = self.servicer.Connect(self.connectionRequest, None)
     receive_response = self.servicer.ReceiveUpdates(connectionResponse.session, None)
