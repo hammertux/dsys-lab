@@ -18,8 +18,8 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         # Value: Connectioninfo object
         self.connections = {}
 
-        # Key: Connectioninfo channel
-        # Value: List of thread UUID hexes
+        # Key: thread UUID hex
+        # Value: Connectioninfo channel
         self.threads = {}
 
         # Key: Connectioninfo channel
@@ -29,9 +29,8 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         self.loads = {}
 
     def get_thread_connection(self, thread_uuid):
-        for channel, threads in self.threads.items():
-            if thread_uuid in threads:
-                return self.connections[channel]
+        if thread_uuid in self.threads.keys():
+            return self.connections[self.threads[thread_uuid]]
         return None
 
     def connection_info_to_channel(self, connectionInfo):
@@ -63,7 +62,6 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         # Store server information
         channel = self.connection_info_to_channel(connectionInfo)
         self.connections[channel] = connectionInfo
-        self.threads[channel] = []
         self.message_queues[channel] = queue.Queue()
         # Add server to request stream
         print('New server stored:', connectionInfo)
@@ -96,8 +94,8 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
             channel = self.get_lowest_load()
             self.message_queues[channel].put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.CREATETHREAD, thread=Thread))
 
-            # Add connection - thread mapping
-            self.threads[channel].append(Thread.uuid.hex)
+            # Add thread - channel mapping
+            self.threads[Thread.uuid.hex] = channel
 
             self.loads = {}
             return self.connections[channel]
