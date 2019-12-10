@@ -1,5 +1,9 @@
 from proto import chat_pb2_grpc # Contains the code necessary for creating the GRPC server and instantiating the service
 from proto import chat_pb2 # Contains the code necessary for constructing messages
+
+from proto import load_balancer_pb2
+from proto import load_balancer_pb2_grpc
+
 from .session import SessionMessage, SessionStore
 import uuid
 from . import time_utils
@@ -8,6 +12,8 @@ import queue
 import grpc
 import threading
 import concurrent.futures
+import random
+import os
 import time
 from pprint import pprint
 from .acknowledgement_tracker import AcknowledgementTracker, MultiAcknowledgeable
@@ -40,7 +46,7 @@ class ThreadConfiguration:
     self.session_refresh_time = session_refresh_time if session_refresh_time is not None else (self.session_length // 2)
     if self.session_refresh_time > self.session_length:
       raise ValueError("Session refresh time cannot be longer than the session length")
-  
+
   @staticmethod
   def get_default(cls):
     return ThreadConfiguration(100, 10, 10, 10, 5)
@@ -71,7 +77,7 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
 
   def lookup_thread(self, thread):
     return self.__get_or_create_thread(self.parse_uuid(thread.uuid.hex))
-  
+
   def parse_uuid(self, uuid_hex):
     return string_to_uuid_or_default(uuid_hex, self.default_uuid)
 
@@ -93,7 +99,7 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
 
     # Response is always just the server time
     return chat_pb2.ServerTime(timestamp = time_utils.current_server_time())
-  
+
 
   def __send_message(self, sentMessage):
     # defer the processing to the appropriate servicer
@@ -135,7 +141,7 @@ class ThreadServicer(AcknowledgementTracker):
     session = self.session_store.create(self, name)
     self.order_enforcer.commit(session)
     return create_connection_response(time_utils.current_server_time(), session, self.uuid)
-  
+
   def ReceiveUpdates(self, session_uuid):
     # defer the processing to the appropriate session object
     return self.session_store.retrieve(session_uuid).ReceiveUpdates()
@@ -144,7 +150,7 @@ class ThreadServicer(AcknowledgementTracker):
     # update the acknowledgement count in the session
     session = self.session_store.retrieve_by_hex(acknowledgement.session.uuid.hex)
     session.Acknowledge(acknowledgement)
-  
+
   def __create_ok_message_status(self, message):
     return chat_pb2.MessageStatus(
       statusCode = chat_pb2.MessageStatusCode.OK,
@@ -162,7 +168,7 @@ class ThreadServicer(AcknowledgementTracker):
       statusCode = chat_pb2.MessageStatusCode.ORDER_ERROR,
       messageTime = chat_pb2.ServerTime(timestamp = time_utils.current_server_time())
     )
-  
+
   def generate_commit_number(self):
     self.last_commit_number = 1
     while True:
@@ -227,15 +233,42 @@ class ThreadServicer(AcknowledgementTracker):
         session.message_queue.put(session_message)
         session_message.acknowledgeable.set_auto_acknowledge(time_utils.to_python_time(expiration_time))
 
+def _load_balancer_listener(load_balancer_connection, info):
+  for req in load_balancer_connection.receiveRequests(info):
+    print('Request type from load balancer: ', req.type)
+    # Send load
+    if req.type == 1:
+      load = os.getloadavg()[0] + random.random() # random.random() added for test purposes on one machine
+      status = load_balancer_connection.sendLoad(load_balancer_pb2.Load(cpuLoad=load, networkLoad=2, info=info))
+    # Create thread
+    # I don't think this is actually necessary because the client creates a thread by sending a message to the server
+    elif req.type == 0:
+        pass
+
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10):
   global server
+  # Start server
   server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=10))
   servicer = ChatServicer(ThreadConfiguration(max_numerical_error_other, max_order_error_other, max_staleness_other))
-  servicer.add_default_thread(ThreadConfiguration(max_numerical_error_global, max_order_error_other, max_staleness_global))
   chat_pb2_grpc.add_ChatServerServicer_to_server(servicer, server)
-  server.add_insecure_port('[::]:50051')
+
+  port = 5005 + random.randint(0, 9)
+
+  server.add_insecure_port('[::]:' + str(port))
   server.start()
+
+  # Load balancer info
+  ip = 'localhost'
+  load_port = 50050
+
+  load_balancer_channel = grpc.insecure_channel(ip + ':' + str(load_port))
+  load_balancer_connection = load_balancer_pb2_grpc.LoadBalancerServerStub(load_balancer_channel)
+
+  info = load_balancer_pb2.ConnectionInfo(ip='localhost', port=str(port))
+
+  threading.Thread(target=_load_balancer_listener, args=(load_balancer_connection, info), daemon=True).start()
+
   if block:
     server.wait_for_termination()
 

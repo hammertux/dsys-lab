@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+import "chat.proto";
+
+service LoadBalancerServer{
+    // Can be used for the chat server to connect to the load balancer
+    // Receives requests either asking to create a thread, or for the chat server to send its load
+    rpc receiveRequests(ConnectionInfo) returns (stream Request) {}
+
+    // Used for the chat server to send its load to the load balancer
+    rpc sendLoad(Load) returns (Status) {}
+
+    // Client can request to connect to a thread
+    // The load balancer will return the server information to which the client should connect
+    rpc ConnectRequest(Thread) returns (ConnectionInfo) {}
+}
+
+message Load{
+    float cpuLoad = 1;
+    float networkLoad = 2;
+    ConnectionInfo info = 3;
+}
+
+enum StatusCode{
+    ERROR = 0;
+    SUCCESS = 1;
+}
+
+message Status{
+    StatusCode status = 1;
+}
+
+enum RequestType{
+    CREATETHREAD = 0;
+    LOAD = 1;
+}
+
+message Request{
+    RequestType type = 1;
+    Thread thread = 2;
+}
+
+message ConnectionInfo{
+    string ip = 1;
+    string port = 2;
+}
