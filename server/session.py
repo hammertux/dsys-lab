@@ -66,7 +66,12 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
     self.__receive_updates_lock = threading.Lock()
 
     # the last commit number for which the client did not receive updates (one lower than the first for which they will receive an update at some point)
-    self.last_commit_number_not_received = None  
+    self.last_commit_number_not_received = None
+  
+  def update_timed_session_configuration(self, session_length, session_refresh_time):
+    self.session_length = session_length * 1000 * 1000
+    self.refresh_time = session_refresh_time * 1000 * 1000
+
   def Acknowledge(self, acknowledgement):
     self.acknowledge_upto(acknowledgement.numMessagesReceived)
   
