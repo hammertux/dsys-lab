@@ -55,7 +55,6 @@ class Client:
         self.sessions = {}
 
     def get_connection(self, thread):
-        print('Get connection')
         info = self.load_balancer_connection.ConnectRequest(thread)
         return info.ip + ':' + str(info.port)
 
@@ -78,7 +77,7 @@ class Client:
                 break
             except:
                 if tries < 5:
-                    time.sleep(1)
+                    time.sleep(2)
                     tries += 1
                 else:
                     s = self.sessions[self.thread_to_session(thread.uuid.hex)]['session']
