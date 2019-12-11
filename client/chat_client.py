@@ -138,16 +138,21 @@ class Client:
             thread_uuid = session.thread.uuid.hex
             old_channel = self.thread_to_channel(thread_uuid)
             # Create new mappings
-            time.sleep(5)
+            time.sleep(7)
             channel = self.get_connection(session.thread)
             self.create_connection_or_add_thread(channel, session.thread)
-            # Delete old mappings
-            del self.connections[old_channel]
-            del self.connection_threads[old_channel]
-            del self.sessions[session.uuid.hex]
-
-            if self.connect(session.thread):
-                break
+            try:
+                del self.connections[old_channel]
+                del self.connection_threads[old_channel]
+                del self.sessions[session.uuid.hex]
+            except:
+                pass
+            
+            try:
+                if self.connect(session.thread):
+                    break
+            except:
+                pass
         # Add remaining messages to new queue
         self.handle_remaining_messages(session, old_channel)
 
