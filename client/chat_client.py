@@ -45,6 +45,8 @@ class Client:
         self.current_thread = None
         self.global_uuid = None
 
+        self.max_reconnection_tries = 1
+
         with open('client_log.csv', 'w', newline='') as file:
             logger = csv.writer(file)
             # action: 0 = message sent, 1 = message received, 2 = session expired
@@ -76,7 +78,7 @@ class Client:
                 res = connection.Connect(connection_request)
                 break
             except:
-                if tries < 5:
+                if tries < self.max_reconnection_tries:
                     time.sleep(2)
                     tries += 1
                 else:
@@ -96,11 +98,20 @@ class Client:
         threading.Thread(target=self._sender, args=(connection,), daemon=True).start()
 
     def _sender(self, connection):
-        try:
-            for status in connection.SendMessages(self.__open_messages(self.connection_to_channel(connection))):
-                print(status.statusCode)
-        except:
-            return
+        # for status in connection.SendMessages(self.__open_messages(self.connection_to_channel(connection))):
+        for message in self.__open_messages(self.connection_to_channel(connection)):
+            while True:
+                try:
+                    status = connection.SendMessage(message)
+                    print(status.statusCode)
+                    if status.statusCode == 0:
+                        break
+                    # On errors
+                    # Sleep 0.1 seconds then retry sending the message
+                    elif status.statusCode == 3 or status.statusCode == 4 or status.statusCode == 5:
+                        time.sleep(0.1)
+                except:
+                    return
 
     def __open_messages(self, channel):
         while True:

@@ -1,6 +1,17 @@
 import os
+import subprocess
 import time
 from threading import Thread
+
+def get_load():
+  pid = os.getpid()
+  # Run top
+  ps = subprocess.Popen(['top', '-p', str(pid), '-n1'], stdout=subprocess.PIPE)
+  # Parse the output with awk
+  output = subprocess.check_output(('awk', '/' + str(pid) + ' /{print $9 " "  $10}'), stdin=ps.stdout).decode('UTF-8').split()
+  cpu = float(output[0].replace(',', '.'))
+  ram = float(output[1].replace(',', '.'))
+  return (cpu + ram)  / 2
 
 class ThreadConfiguration:
   def __init__(self, max_numerical_error, max_order_error, max_staleness, session_length = None, session_refresh_time = None):
@@ -35,7 +46,7 @@ class LoadThresholdThreadConfigurationFactory:
     self.high_load_configuration = high_load_configuration
   
   def get_configuration(self):
-    return self.normal_configuration if os.getloadavg()[0] < self.threshold else self.high_load_configuration
+    return self.normal_configuration if get_load() < self.threshold else self.high_load_configuration
 
 class DoubleErrorUnderLoadThreadConfigurationFactory(LoadThresholdThreadConfigurationFactory):
   def __init__(self, normal_configuration, threshold):
@@ -50,7 +61,7 @@ class DoubleErrorUnderLoadThreadConfigurationFactory(LoadThresholdThreadConfigur
     )
   
   def get_configuration(self):
-    return self.normal_configuration if os.getloadavg()[0] < self.threshold else self.high_load_configuration
+    return self.normal_configuration if get_load() < self.threshold else self.high_load_configuration
 
 class ThreadConfigurationPolicy:
   def __init__(self, thread_configuration):

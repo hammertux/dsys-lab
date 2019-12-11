@@ -14,7 +14,9 @@ import threading
 import concurrent.futures
 import random
 import os
+import sys
 import time
+import subprocess
 from pprint import pprint
 from .acknowledgement_tracker import AcknowledgementTracker, MultiAcknowledgeable
 from .consistency_requirement import CompositeRequirement, OrderEnforcer
@@ -231,13 +233,13 @@ class ThreadServicer(AcknowledgementTracker):
         session.message_queue.put(session_message)
         session_message.acknowledgeable.set_auto_acknowledge(time_utils.to_python_time(expiration_time))
 
-def _load_balancer_listener(load_balancer_connection, info):
+def _load_balancer_listener(load_balancer_connection, info, pid):
   for req in load_balancer_connection.receiveRequests(info):
     print('Request type from load balancer: ', req.type)
     # Send load
     if req.type == 1:
-      load = os.getloadavg()[0] + random.random() # random.random() added for test purposes on one machine
-      status = load_balancer_connection.sendLoad(load_balancer_pb2.Load(cpuLoad=load, networkLoad=2, info=info))
+      load = get_load(pid)
+      status = load_balancer_connection.sendLoad(load_balancer_pb2.Load(cpuLoad=load, networkLoad=0, info=info))
     # Create thread
     # I don't think this is actually necessary because the client creates a thread by sending a message to the server
     elif req.type == 0:
@@ -245,6 +247,15 @@ def _load_balancer_listener(load_balancer_connection, info):
     elif req.type == 2:
       pong = load_balancer_pb2.Pong(info=info)
       status = load_balancer_connection.sendPong(pong)
+
+def get_load(pid):
+  # Run top
+  ps = subprocess.Popen(['top', '-p', str(pid), '-n1'], stdout=subprocess.PIPE)
+  # Parse the output with awk
+  output = subprocess.check_output(('awk', '/' + str(pid) + ' /{print $9 " "  $10}'), stdin=ps.stdout).decode('UTF-8').split()
+  cpu = float(output[0].replace(',', '.'))
+  ram = float(output[1].replace(',', '.'))
+  return (cpu + ram)  / 2
 
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10, load_check_interval = 5, load_threshold = 1):
@@ -259,7 +270,11 @@ def serve(block = False, max_numerical_error_global = 10, max_order_error_global
   servicer = ChatServicer(normal_policy, global_policy)
   chat_pb2_grpc.add_ChatServerServicer_to_server(servicer, server)
 
-  port = 5005 + random.randint(0, 9)
+  args = sys.argv
+  if len(args) > 1:
+    port = args[1]
+  else:
+    port = 5000 + random.randint(0, 9)
 
   server.add_insecure_port('[::]:' + str(port))
   server.start()
@@ -272,8 +287,9 @@ def serve(block = False, max_numerical_error_global = 10, max_order_error_global
   load_balancer_connection = load_balancer_pb2_grpc.LoadBalancerServerStub(load_balancer_channel)
 
   info = load_balancer_pb2.ConnectionInfo(ip='localhost', port=str(port))
-
-  threading.Thread(target=_load_balancer_listener, args=(load_balancer_connection, info), daemon=True).start()
+  pid = os.getpid()
+  print('PID:' + str(pid))
+  threading.Thread(target=_load_balancer_listener, args=(load_balancer_connection, info, pid), daemon=True).start()
 
   if block:
     server.wait_for_termination()
