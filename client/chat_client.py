@@ -80,9 +80,7 @@ class Client:
                     time.sleep(2)
                     tries += 1
                 else:
-                    s = self.sessions[self.thread_to_session(thread.uuid.hex)]['session']
-                    self.handle_server_down(s)
-                    break
+                    return False
 
         self.start_sender(connection)
 
@@ -92,6 +90,7 @@ class Client:
             self.global_uuid = self.current_thread
         print('Listening to new thread')
         self.start_listening(res.session)
+        return True
 
     def start_sender(self, connection):
         threading.Thread(target=self._sender, args=(connection,), daemon=True).start()
@@ -133,29 +132,33 @@ class Client:
             return
 
     def handle_server_down(self, session):
-        print('Server down')
-        thread_uuid = session.thread.uuid.hex
-        old_channel = self.thread_to_channel(thread_uuid)
-        # Create new mappings
-        channel = self.get_connection(session.thread)
-        if channel == old_channel:
-            time.sleep(2)
+        while True:
+            # Keep retrying to connect until load balancer gives working server
+            print('Server down')
+            thread_uuid = session.thread.uuid.hex
+            old_channel = self.thread_to_channel(thread_uuid)
+            # Create new mappings
+            time.sleep(5)
             channel = self.get_connection(session.thread)
-        self.create_connection_or_add_thread(channel, session.thread)
-        self.connect(session.thread)
+            self.create_connection_or_add_thread(channel, session.thread)
+            # Delete old mappings
+            del self.connections[old_channel]
+            del self.connection_threads[old_channel]
+            del self.sessions[session.uuid.hex]
+
+            if self.connect(session.thread):
+                break
         # Add remaining messages to new queue
         self.handle_remaining_messages(session, old_channel)
-        # Delete old mappings
-        del self.sessions[session.uuid.hex]
-        del self.connections[old_channel]
-        del self.connection_threads[old_channel]
-    
+
     def handle_remaining_messages(self, session, old_channel):
         # Get messages going to that server
-        for message in self.message_queues[old_channel].get():
+        messages = list(self.message_queues[old_channel].queue)
+        for message in messages:
             # Get channel for that message and put it in the queue
             channel = self.thread_to_channel(session.thread.uuid.hex)
-            self.create_message(message, channel, session.thread.uuid.hex)
+            self.create_message(message.contents, channel, session.thread.uuid.hex)
+        del self.message_queues[old_channel]
 
     def handle_update(self, session, update):
         current_time = self.current_time()
@@ -203,7 +206,7 @@ class Client:
 
         # Create message and put it in the right queue
         self.create_message(msg, channel)
-    
+
     def create_message(self, msg, channel, thread_uuid=None):
         if not thread_uuid:
             s_id = self.thread_to_session(self.current_thread)

@@ -241,7 +241,10 @@ def _load_balancer_listener(load_balancer_connection, info):
     # Create thread
     # I don't think this is actually necessary because the client creates a thread by sending a message to the server
     elif req.type == 0:
-        pass
+      pass
+    elif req.type == 2:
+      pong = load_balancer_pb2.Pong(info=info)
+      status = load_balancer_connection.sendPong(pong)
 
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10, load_check_interval = 5, load_threshold = 1):

@@ -27,6 +27,7 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         self.message_queues = {}
 
         self.loads = {}
+        self.pongs = []
 
     def get_thread_connection(self, thread_uuid):
         if thread_uuid in self.threads.keys():
@@ -39,7 +40,6 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
     def _requester(self, channel):
         while True:
             request = self.message_queues[channel].get()
-            print('request sent:', channel, request)
             yield request
 
     def get_lowest_load(self):
@@ -50,6 +50,50 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
                 lowest = load
                 selected_channel = channel
         return selected_channel
+
+    def start_pinger(self):
+        threading.Thread(target=self._pinger, daemon=True).start()
+
+    def _pinger(self):
+        """
+        Ping all knows servers every two seconds
+        """
+        while True:
+            self.pongs = []
+            for _, q in self.message_queues.items():
+                q.put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.PING, thread=chat_pb2.Thread()))
+            # Wait half a second to receive all answers
+            time.sleep(0.5)
+            self.handle_pongs()
+            time.sleep(2)
+
+    def handle_pongs(self):
+        # Check which servers did not send pings
+        missing_channels = list(set(self.connections.keys()) - set(self.pongs))
+        self.pongs = []
+        for channel in missing_channels:
+            self.message_queues[channel].put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.PING, thread=chat_pb2.Thread()))
+        time.sleep(0.5)
+        down_channels = list(set(missing_channels) - set(self.pongs))
+        for down_channel in down_channels:
+            self.handle_server_down(down_channel)
+
+    def handle_server_down(self, down_channel):
+        """
+        Remove the connection of server that is down and distribute the threads over the other servers
+        """
+        print('Remapping threads of down server')
+        del self.connections[down_channel]
+        del self.message_queues[down_channel]
+        channels = list(self.connections.keys())
+        if len(channels) > 0:
+            i = 0
+            for thread, channel in self.threads.items():
+                if channel == down_channel:
+                    self.threads[thread] = channels[i]
+                    i += 1
+                    if i == len(channels):
+                        i = 0
 
     ###
     # Remote procedure calls
@@ -75,6 +119,14 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         print('Loads:')
         print(self.loads)
         return load_balancer_pb2.Status(status=load_balancer_pb2.StatusCode.SUCCESS)
+
+    def sendPong(self, Pong, context):
+        """
+        Send a pong as chat server after receiving a ping request
+        """
+        self.pongs.append(self.connection_info_to_channel(Pong.info))
+        return load_balancer_pb2.Status(status=load_balancer_pb2.StatusCode.SUCCESS)
+
 
     def ConnectRequest(self, Thread, context):
         """
@@ -108,6 +160,9 @@ def serve(block = False):
     load_balancer_pb2_grpc.add_LoadBalancerServerServicer_to_server(servicer, server)
     server.add_insecure_port('[::]:50050')
     server.start()
+
+    servicer.start_pinger()
+
     if block:
         server.wait_for_termination()
 
