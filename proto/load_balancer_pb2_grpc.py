@@ -25,6 +25,11 @@ class LoadBalancerServerStub(object):
         request_serializer=load__balancer__pb2.Load.SerializeToString,
         response_deserializer=load__balancer__pb2.Status.FromString,
         )
+    self.sendPong = channel.unary_unary(
+        '/LoadBalancerServer/sendPong',
+        request_serializer=load__balancer__pb2.Pong.SerializeToString,
+        response_deserializer=load__balancer__pb2.Status.FromString,
+        )
     self.ConnectRequest = channel.unary_unary(
         '/LoadBalancerServer/ConnectRequest',
         request_serializer=chat__pb2.Thread.SerializeToString,
@@ -51,6 +56,13 @@ class LoadBalancerServerServicer(object):
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
 
+  def sendPong(self, request, context):
+    """Send pong to the load balancer after receiving a ping
+    """
+    context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+    context.set_details('Method not implemented!')
+    raise NotImplementedError('Method not implemented!')
+
   def ConnectRequest(self, request, context):
     """Client can request to connect to a thread
     The load balancer will return the server information to which the client should connect
@@ -70,6 +82,11 @@ def add_LoadBalancerServerServicer_to_server(servicer, server):
       'sendLoad': grpc.unary_unary_rpc_method_handler(
           servicer.sendLoad,
           request_deserializer=load__balancer__pb2.Load.FromString,
+          response_serializer=load__balancer__pb2.Status.SerializeToString,
+      ),
+      'sendPong': grpc.unary_unary_rpc_method_handler(
+          servicer.sendPong,
+          request_deserializer=load__balancer__pb2.Pong.FromString,
           response_serializer=load__balancer__pb2.Status.SerializeToString,
       ),
       'ConnectRequest': grpc.unary_unary_rpc_method_handler(

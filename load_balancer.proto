@@ -10,9 +10,16 @@ service LoadBalancerServer{
     // Used for the chat server to send its load to the load balancer
     rpc sendLoad(Load) returns (Status) {}
 
+    // Send pong to the load balancer after receiving a ping
+    rpc sendPong(Pong) returns (Status) {}
+
     // Client can request to connect to a thread
     // The load balancer will return the server information to which the client should connect
     rpc ConnectRequest(Thread) returns (ConnectionInfo) {}
+}
+
+message Pong{
+    ConnectionInfo info = 1;
 }
 
 message Load{
@@ -33,6 +40,7 @@ message Status{
 enum RequestType{
     CREATETHREAD = 0;
     LOAD = 1;
+    PING = 2;
 }
 
 message Request{
