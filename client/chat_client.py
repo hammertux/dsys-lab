@@ -20,7 +20,7 @@ class Client:
     '''
     Params:
         - Username
-        - Load balancer ipf
+        - Load balancer ip
         - Load balancer port
     '''
     def __init__(self, username, ip, port):
@@ -32,14 +32,17 @@ class Client:
         # Key: Channel
         # Value: Connection to that channel
         self.connections = {}
+        self.connections_lock = threading.RLock()
 
         # Key: Channel
         # Value: List of thread uuid hex that belong to that server connection
         self.connection_threads = {}
+        self.connection_threads_lock = threading.RLock()
 
         # Key: Channel
         # Value: Message queue
         self.message_queues = {}
+        self.message_queues_lock = threading.RLock()
 
         self.default_thread = chat_pb2.Thread(uuid=chat_pb2.UUID(hex=uuid.UUID(int=0).hex))
         self.current_thread = None
@@ -54,6 +57,7 @@ class Client:
 
         # Key: session uuid hex
         # Value: dict(session, messages_sent, messages_received, updates_received, expiration_timer)
+        self.sessions_lock = threading.RLock()
         self.sessions = {}
 
     def get_connection(self, thread):
@@ -63,9 +67,12 @@ class Client:
     def create_server_connection(self, channel, thread):
         grpc_channel = grpc.insecure_channel(channel)
         connection = chat_pb2_grpc.ChatServerStub(grpc_channel)
-        self.connections[channel] = connection
-        self.connection_threads[channel] = [thread.uuid.hex]
-        self.message_queues[channel] = queue.Queue()
+        with self.connections_lock:
+            self.connections[channel] = connection
+        with self.connection_threads_lock:
+            self.connection_threads[channel] = [thread.uuid.hex]
+        with self.message_queues_lock:
+            self.message_queues[channel] = queue.Queue()
 
     def connect(self, thread=None):
         tries = 0
@@ -85,8 +92,8 @@ class Client:
                     return False
 
         self.start_sender(connection)
-
-        self.sessions[res.session.uuid.hex] = {'session': res.session, 'messages_sent': 0, 'messages_received': 0, 'updates_received': 0, 'expiration_timer': None}
+        with self.sessions_lock:
+            self.sessions[res.session.uuid.hex] = {'session': res.session, 'messages_sent': 0, 'messages_received': 0, 'updates_received': 0, 'expiration_timer': None}
         self.current_thread = res.session.thread.uuid.hex
         if thread == self.default_thread:
             self.global_uuid = self.current_thread
@@ -108,7 +115,7 @@ class Client:
                     if status.statusCode == 0 or tries > 5:
                         break
                     # On errors
-                    # Sleep 0.1 seconds then retry sending the message
+                    # Sleep 0.5 seconds then retry sending the message
                     elif status.statusCode == 3 or status.statusCode == 4 or status.statusCode == 5:
                         time.sleep(0.5)
                         tries += 1
@@ -155,12 +162,15 @@ class Client:
             channel = self.get_connection(session.thread)
             self.create_connection_or_add_thread(channel, session.thread)
             try:
-                del self.connections[old_channel]
-                del self.connection_threads[old_channel]
-                del self.sessions[session.uuid.hex]
+                with self.connections_lock:
+                    del self.connections[old_channel]
+                with self.connection_threads_lock:
+                    del self.connection_threads[old_channel]
+                with self.sessions_lock:
+                    del self.sessions[session.uuid.hex]
             except:
                 pass
-            
+
             try:
                 if self.connect(session.thread):
                     break
@@ -176,14 +186,16 @@ class Client:
             # Get channel for that message and put it in the queue
             channel = self.thread_to_channel(session.thread.uuid.hex)
             self.create_message(message.contents, channel, session.thread.uuid.hex)
-        del self.message_queues[old_channel]
+        with self.message_queues_lock:
+            del self.message_queues[old_channel]
 
     def handle_update(self, session, update):
         current_time = self.current_time()
         expiration_time = (update.expirationTime.timestamp - current_time) / 1000000
         self.session_expiration_warning(session.uuid.hex, expiration_time)
 
-        self.sessions[session.uuid.hex]['updates_received'] += 1
+        with self.sessions_lock:
+            self.sessions[session.uuid.hex]['updates_received'] += 1
 
         for msg in update.message:
             self.sessions[session.uuid.hex]['messages_received'] += 1
@@ -252,7 +264,8 @@ class Client:
         if channel not in self.connections.keys():
             self.create_server_connection(channel, thread)
         else:
-            self.connection_threads[channel].append(thread.uuid.hex)
+            with self.connection_threads_lock:
+                self.connection_threads[channel].append(thread.uuid.hex)
 
     def session_expiration_warning(self, session_id, time):
         if self.sessions[session_id]['expiration_timer']:
@@ -281,25 +294,29 @@ class Client:
 
     # Return the session uid that belongs to a thread uuid
     def thread_to_session(self, thread_uuid):
-        for k, v in self.sessions.items():
-            if v['session'].thread.uuid.hex == thread_uuid:
-                return k
-        return None
+        with self.sessions_lock:
+            for k, v in self.sessions.items():
+                if v['session'].thread.uuid.hex == thread_uuid:
+                    return k
+            return None
 
     def thread_to_connection(self, thread_uuid):
-        for channel, threads in self.connection_threads.items():
-            if thread_uuid in threads:
-                return self.connections[channel]
+        with self.connection_threads_lock:
+            for channel, threads in self.connection_threads.items():
+                if thread_uuid in threads:
+                    return self.connections[channel]
 
     def thread_to_channel(self, thread_uuid):
-        for channel, threads in self.connection_threads.items():
-            if thread_uuid in threads:
-                return channel
+        with self.connection_threads_lock:
+            for channel, threads in self.connection_threads.items():
+                if thread_uuid in threads:
+                    return channel
 
     def connection_to_channel(self, connection):
-        for channel, c in self.connections.items():
-            if connection == c:
-                return channel
+        with self.connections_lock:
+            for channel, c in self.connections.items():
+                if connection == c:
+                    return channel
 
 def run(client):
     while True:
