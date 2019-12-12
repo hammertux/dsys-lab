@@ -202,15 +202,19 @@ class ThreadServicer(AcknowledgementTracker):
     # try to commit the message
     try:
       self.message_consistency.commit(message, time_utils.to_python_time(message.time_left_before_commit_deadline()))
+      self.log_status(0)
       return self.__create_ok_message_status(message)
     # if the message could not be committed due to the numerical error being too high
     except NumericalError:
+      self.log_status(4)
       return self.__create_numerical_error_message_status()
     # if the message could not be committed due to the order error being too high
     except OrderError:
+      self.log_status(3)
       return self.__create_order_error_message_status()
     # if the message could not be committed due to the message having arrived too late
     except message_mod.CommitTooLate as e:
+      self.log_status(5)
       return e.to_message_status()
 
   def start_broadcasting(self):
@@ -240,6 +244,12 @@ class ThreadServicer(AcknowledgementTracker):
       logger = csv.writer(file)
       ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
       logger.writerow([time.time(), error, error_type])
+
+  def log_status(self, status):
+    with open('./logs/server_statusses_' + pid + '.csv', 'a', newline='') as file:
+      logger = csv.writer(file)
+      ### status_code: 0 = ok, 1 = client error, 2 = internal error, 3 = order error, 4 = numerical error, 5 = staleness
+      logger.writerow([time.time(), status])
 
   def get_current_timestamp(self):
     return int(round(time.time() * 1000 * 1000))
@@ -286,6 +296,10 @@ def create_initial_logs():
   with open('./logs/server_errors_' + pid + '.csv', 'w', newline='') as file:
     logger = csv.writer(file)
     logger.writerow(['timestamp', 'error_val', 'type'])
+  ### status_code: 0 = ok, 1 = client error, 2 = internal error, 3 = order error, 4 = numerical error, 5 = staleness
+  with open('./logs/server_statusses_' + pid + '.csv', 'w', newline='') as file:
+    logger = csv.writer(file)
+    logger.writerow(['timestamp', 'status_code'])
 
 
 server = None
