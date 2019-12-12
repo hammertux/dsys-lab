@@ -300,6 +300,10 @@ def create_initial_logs():
   with open('./logs/server_statuses_' + pid + '.csv', 'w', newline='') as file:
     logger = csv.writer(file)
     logger.writerow(['timestamp', 'status_code'])
+  with open('./logs/server_policy_' + pid + '.csv', 'w', newline='') as file:
+    logger = csv.writer(file)
+    ### policy: 0 = normal configuration, 1 = high load configuration
+    logger.writerow(['timestamp', 'policy'])
 
 
 server = None

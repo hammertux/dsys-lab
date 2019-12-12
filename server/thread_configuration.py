@@ -30,7 +30,7 @@ def get_load():
 def log_policy(policy):
   with open('./logs/server_policy_' + pid + '.csv', 'a', newline='') as file:
     logger = csv.writer(file)
-    ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
+    ### policy: 0 = normal configuration, 1 = high load configuration
     logger.writerow([time.time(), policy])
 
 
