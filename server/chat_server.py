@@ -15,6 +15,7 @@ import concurrent.futures
 import random
 import os
 import sys
+import csv
 import time
 import subprocess
 from pprint import pprint
@@ -197,6 +198,7 @@ class ThreadServicer(AcknowledgementTracker):
       sender_session = sender_session,
       commit_number_generator = self.commit_number_generator
     )
+    self.log_error(self.get_current_timestamp() - int(sentMessage.timestamp.timestamp), 0)
     # try to commit the message
     try:
       self.message_consistency.commit(message, time_utils.to_python_time(message.time_left_before_commit_deadline()))
@@ -233,6 +235,15 @@ class ThreadServicer(AcknowledgementTracker):
         session.message_queue.put(session_message)
         session_message.acknowledgeable.set_auto_acknowledge(time_utils.to_python_time(expiration_time))
 
+  def log_error(self, error, error_type):
+    with open('./logs/server_errors_' + pid + '.csv', 'a', newline='') as file:
+      logger = csv.writer(file)
+      ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
+      logger.writerow([time.time(), error, error_type])
+
+  def get_current_timestamp(self):
+    return int(round(time.time() * 1000 * 1000))
+
 def _load_balancer_listener(load_balancer_connection, info, pid):
   for req in load_balancer_connection.receiveRequests(info):
     print('Request type from load balancer: ', req.type)
@@ -268,6 +279,15 @@ def get_load(pid):
     return 1
   return (cpu + ram)  / 2
 
+def create_initial_logs():
+  if not os.path.exists('./logs/'):
+    os.makedirs('./logs/')
+  ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
+  with open('./logs/server_errors_' + pid + '.csv', 'w', newline='') as file:
+    logger = csv.writer(file)
+    logger.writerow(['timestamp', 'error_val', 'type'])
+
+
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10, load_check_interval = 5, load_threshold = 1):
   global server
@@ -298,8 +318,12 @@ def serve(block = False, max_numerical_error_global = 10, max_order_error_global
   load_balancer_connection = load_balancer_pb2_grpc.LoadBalancerServerStub(load_balancer_channel)
 
   info = load_balancer_pb2.ConnectionInfo(ip='localhost', port=str(port))
+  global pid 
   pid = str(os.getpid())
   print('PID:' + pid)
+
+  create_initial_logs()
+
   threading.Thread(target=_load_balancer_listener, args=(load_balancer_connection, info, pid), daemon=True).start()
 
   if block:

@@ -72,6 +72,7 @@ class DoubleErrorUnderLoadThreadConfigurationFactory(LoadThresholdThreadConfigur
     )
   
   def get_configuration(self):
+    # Log policy
     return self.normal_configuration if get_load() < self.threshold else self.high_load_configuration
 
 class ThreadConfigurationPolicy:

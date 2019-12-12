@@ -136,7 +136,7 @@ class Client:
         try:
             for update in connection.ReceiveUpdates(session):
                 # Log update
-                self.log(session.uuid.hex, 1)
+                # self.log(session.uuid.hex, 1)
                 # Handle update
                 self.handle_update(session, update)
                 # Acknowledge
@@ -258,7 +258,7 @@ class Client:
         if not channel:
             channel = self.thread_to_channel(self.current_thread)
         self.message_queues[channel].put(msg_obj)
-        self.log(s_id, 0)
+        # self.log(s_id, 0)
 
     def create_connection_or_add_thread(self, channel, thread):
         if channel not in self.connections.keys():
@@ -276,7 +276,7 @@ class Client:
         timer.start()
 
     def _show_session_expiration(self, id):
-        self.log(id, 2)
+        # self.log(id, 2)
         print('Consistency not guaranteed for session: ' + str(id))
 
     def log(self, session, action):
