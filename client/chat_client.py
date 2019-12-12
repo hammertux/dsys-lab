@@ -100,16 +100,18 @@ class Client:
     def _sender(self, connection):
         # for status in connection.SendMessages(self.__open_messages(self.connection_to_channel(connection))):
         for message in self.__open_messages(self.connection_to_channel(connection)):
+            tries = 0
             while True:
                 try:
                     status = connection.SendMessage(message)
                     print(status.statusCode)
-                    if status.statusCode == 0:
+                    if status.statusCode == 0 or tries > 5:
                         break
                     # On errors
                     # Sleep 0.1 seconds then retry sending the message
                     elif status.statusCode == 3 or status.statusCode == 4 or status.statusCode == 5:
-                        time.sleep(0.1)
+                        time.sleep(0.5)
+                        tries += 1
                 except:
                     return
 
