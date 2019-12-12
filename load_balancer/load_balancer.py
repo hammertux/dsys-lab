@@ -16,22 +16,27 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
     def __init__(self):
         # Key: Connectioninfo channel
         # Value: Connectioninfo object
+        self.connections_lock = threading.RLock()
         self.connections = {}
 
         # Key: thread UUID hex
         # Value: Connectioninfo channel
+        self.threads_lock = threading.RLock()
         self.threads = {}
 
         # Key: Connectioninfo channel
         # Value: Queue containing requests to that server
+        self.messages_lock = threading.RLock()
         self.message_queues = {}
 
+        self.loads_lock = threading.RLock()
         self.loads = {}
         self.pongs = []
 
     def get_thread_connection(self, thread_uuid):
         if thread_uuid in self.threads.keys():
-            return self.connections[self.threads[thread_uuid]]
+            with self.connections_lock:
+                return self.connections[self.threads[thread_uuid]]
         return None
 
     def connection_info_to_channel(self, connectionInfo):
@@ -45,10 +50,11 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
     def get_lowest_load(self):
         selected_channel = None
         lowest = None
-        for channel, load in self.loads.items():
-            if not lowest or lowest > load:
-                lowest = load
-                selected_channel = channel
+        with self.loads_lock:
+            for channel, load in self.loads.items():
+                if not lowest or lowest > load:
+                    lowest = load
+                    selected_channel = channel
         return selected_channel
 
     def start_pinger(self):
@@ -60,8 +66,9 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         """
         while True:
             self.pongs = []
-            for _, q in self.message_queues.items():
-                q.put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.PING, thread=chat_pb2.Thread()))
+            with self.messages_lock:
+                for _, q in self.message_queues.items():
+                    q.put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.PING, thread=chat_pb2.Thread()))
             # Wait half a second to receive all answers
             time.sleep(0.5)
             self.handle_pongs()
@@ -83,17 +90,20 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         Remove the connection of server that is down and distribute the threads over the other servers
         """
         print('Remapping threads of down server')
-        del self.connections[down_channel]
-        del self.message_queues[down_channel]
+        with self.connections_lock:
+            del self.connections[down_channel]
+        with self.messages_lock:
+            del self.message_queues[down_channel]
         channels = list(self.connections.keys())
         if len(channels) > 0:
             i = 0
-            for thread, channel in self.threads.items():
-                if channel == down_channel:
-                    self.threads[thread] = channels[i]
-                    i += 1
-                    if i == len(channels):
-                        i = 0
+            with self.threads_lock:
+                for thread, channel in self.threads.items():
+                    if channel == down_channel:
+                        self.threads[thread] = channels[i]
+                        i += 1
+                        if i == len(channels):
+                            i = 0
 
     ###
     # Remote procedure calls
@@ -115,7 +125,8 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         """
         Add load that chat server sent to dictionary and return response
         """
-        self.loads[Load.info.ip + ':' + Load.info.port] = Load.cpuLoad
+        with self.loads_lock:
+            self.loads[Load.info.ip + ':' + Load.info.port] = Load.cpuLoad
         print('Loads:')
         print(self.loads)
         return load_balancer_pb2.Status(status=load_balancer_pb2.StatusCode.SUCCESS)
@@ -138,8 +149,9 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
             return connection
         else:
             # Get the loads
-            for _, q in self.message_queues.items():
-                q.put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.LOAD, thread=chat_pb2.Thread()))
+            with self.messages_lock:
+                for _, q in self.message_queues.items():
+                    q.put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.LOAD, thread=chat_pb2.Thread()))
             time.sleep(0.5)
 
             # Create thread on connection with lowest load
