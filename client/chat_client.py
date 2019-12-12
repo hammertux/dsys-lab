@@ -62,6 +62,8 @@ class Client:
 
     def get_connection(self, thread):
         info = self.load_balancer_connection.ConnectRequest(thread)
+        if info.ip == None:
+            return None
         return info.ip + ':' + str(info.port)
 
     def create_server_connection(self, channel, thread):
@@ -82,6 +84,7 @@ class Client:
             try:
                 connection_request = chat_pb2.ConnectionRequest(thread=thread, name=self.username)
                 connection = self.thread_to_connection(thread.uuid.hex)
+                print("Connecting")
                 res = connection.Connect(connection_request)
                 break
             except:

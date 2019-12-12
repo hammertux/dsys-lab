@@ -2,6 +2,7 @@ import os
 import subprocess
 import time
 from threading import Thread
+from queue import Queue
 
 def get_load():
   pid = os.getpid()
@@ -24,6 +25,7 @@ class ThreadConfiguration:
     self.session_refresh_time = session_refresh_time if session_refresh_time is not None else (self.session_length // 2)
     if self.session_refresh_time > self.session_length:
       raise ValueError("Session refresh time cannot be longer than the session length")
+    self.staleness_queue = Queue()
   
   def copy(self):
     return ThreadConfiguration(self.max_numerical_error, self.max_order_error, self.max_staleness, self.session_length, self.session_refresh_time)

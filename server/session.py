@@ -84,6 +84,9 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
   # Triggers a shutdown of the active thread in this session
   def trigger_shutdown(self):
     self.message_queue_generator.stop()
+  
+  def broadcast_message(self, message):
+    return self.thread_servicer.broadcast_message(message)
 
   def ReceiveUpdates(self):
     # acquire the lock to ensure that only one such connection exists per session at a time

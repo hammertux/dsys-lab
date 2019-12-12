@@ -12,7 +12,7 @@ class ChatCommittable(consistency_requirement.Committable):
 
 class Message(ChatCommittable):
   """Constructs a new Message based on a SentMessage."""
-  def __init__(self, sentMessage, commit_deadline, on_commit, sender_session, commit_number_generator):
+  def __init__(self, sentMessage, commit_deadline, on_commit, sender_session, commit_number_generator, broadcast_staleness):
     self.thread = sentMessage.acknowledgement.session.thread
     self.contents = sentMessage.contents
     self.uuid = uuid.uuid4()
@@ -24,7 +24,9 @@ class Message(ChatCommittable):
     self.commit_number = None
     self.on_commit = on_commit
     self.commit_number_generator = commit_number_generator
+    self.broadcast_staleness = broadcast_staleness
     self.sender_name = sender_session.name
+    self.sender_session = sender_session
     if sender_session.last_commit_number_not_received is not None:
       self.last_commit_number_received_by_sender = sentMessage.acknowledgement.numMessagesReceived + sender_session.last_commit_number_not_received
 
@@ -49,8 +51,12 @@ class Message(ChatCommittable):
     if commit_time > self.commit_deadline:
       raise CommitTooLate(commit_time)
     self.commit_time = commit_time
+    self.broadcast_deadline = commit_time + self.broadcast_staleness
     self.commit_number = next(self.commit_number_generator)
     self.on_commit(self)
+  
+  def broadcast(self):
+    return self.sender_session.broadcast_message(self)
 
 class Update:
   def __init__(self, expiration_time):

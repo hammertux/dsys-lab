@@ -48,6 +48,8 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
     self.default_uuid = uuid.UUID(int=0)
     self.thread_configuration_policy = thread_configuration_policy
     self.thread_configuration_policy_for_default_thread = thread_configuration_policy_for_default_thread
+    self.thread_configurations = []
+    self.numerical_error_queue = PriorityQueue()
 
 
   def add_thread(self, uuid):
@@ -93,6 +95,36 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
   def __send_message(self, sentMessage):
     # defer the processing to the appropriate servicer
     return self.lookup_thread(sentMessage.acknowledgement.session.thread).SendMessage(sentMessage)
+
+
+  # broadcast all messages for which the broadcast_deadline has past
+  def broadcast_from_staleness_queue(self, block_on_acquire_lock = True):
+    count = 0
+    for configuration in self.thread_configurations:
+      if not configuration.staleness_queue.mutex.acquire(block_on_acquire_lock):
+        continue
+      try:
+        if not configuration.staleness_queue.queue:
+          continue
+        message = configuration.staleness_queue.queue.popleft()
+        # broadcast messages if their deadline has past
+        while message.broadcast_deadline > time_utils.current_server_time():
+          if message.broadcast():
+            count += 1
+          message = configuration.staleness_queue.queue.popleft()
+      finally:
+        configuration.staleness_queue.mutex.release()
+    return count
+
+
+  def broadcast_from_numerical_error_queue(self, count):
+    for i in range(0, count):
+      
+
+  def broadcast_messages(self):
+    while True:
+      count = self.broadcast_from_staleness_queue()
+      self.broadcast_from_numerical_error_queue(max(count, total - count))
 
 
   def SendMessage(self, sentMessage, context):
@@ -195,7 +227,8 @@ class ThreadServicer(AcknowledgementTracker):
       commit_deadline = sentMessage.timestamp.timestamp + self.max_staleness_in_send_message,
       on_commit = self.__on_message_commit,
       sender_session = sender_session,
-      commit_number_generator = self.commit_number_generator
+      commit_number_generator = self.commit_number_generator,
+      broadcast_staleness = self.session_refresh_time
     )
     # try to commit the message
     try:
@@ -217,21 +250,30 @@ class ThreadServicer(AcknowledgementTracker):
     self.broadcast_thread = threading.Thread(target=self.broadcast_messages, daemon=True)
     self.broadcast_thread.start()
 
-  def broadcast_messages(self):
-    for message in self.broadcast_queue_generator.generate(): # waits for a new message if neccessary
-      # make a copy of the sessions so that new sessions can be added while we're broadcasting
-      sessions = list(self.session_store.dict.values())
-      # make sure acknowledgements of this message are tracked
-      acknowledgeable = MultiAcknowledgeable(len(sessions))
-      acknowledgeable.after_acknowledge = self.on_acknowledge
-      self.add_unacknowledged(acknowledgeable)
-      # queue it for all sessions subscribed to this thread
-      for session in sessions:
-        expiration_time = session.expiration_time
-        session_message = SessionMessage(message, acknowledgeable)
-        session.add_unacknowledged(session_message.acknowledgeable)
-        session.message_queue.put(session_message)
-        session_message.acknowledgeable.set_auto_acknowledge(time_utils.to_python_time(expiration_time))
+  def __do_broadcast(self, message):
+    # make a copy of the sessions so that new sessions can be added while we're broadcasting
+    sessions = list(self.session_store.dict.values())
+    # make sure acknowledgements of this message are tracked
+    acknowledgeable = MultiAcknowledgeable(len(sessions))
+    acknowledgeable.after_acknowledge = self.on_acknowledge
+    self.add_unacknowledged(acknowledgeable)
+    # queue it for all sessions subscribed to this thread
+    for session in sessions:
+      expiration_time = session.expiration_time
+      session_message = SessionMessage(message, acknowledgeable)
+      session.add_unacknowledged(session_message.acknowledgeable)
+      session.message_queue.put(session_message)
+      session_message.acknowledgeable.set_auto_acknowledge(time_utils.to_python_time(expiration_time))
+  
+  def broadcast_message(self, message = None):
+    with self.broadcast_queue.mutex:
+      if not self.broadcast_queue.queue:
+        return False
+      if message is None or self.broadcast_queue.queue[0].uuid == message.uuid:
+        self.__do_broadcast(self.broadcast_queue.queue.popleft())
+        return True
+      else:
+        return False
 
 def _load_balancer_listener(load_balancer_connection, info, pid):
   for req in load_balancer_connection.receiveRequests(info):
