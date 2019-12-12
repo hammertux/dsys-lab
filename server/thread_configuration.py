@@ -8,7 +8,7 @@ def get_load():
   # Run top
   ps = subprocess.Popen(['top', '-p', str(pid), '-n1'], stdout=subprocess.PIPE)
   # Parse the output with awk
-  output = subprocess.check_output(('awk', '/' + str(pid) + ' /{print $9 " "  $10}'), stdin=ps.stdout).decode('UTF-8').split()
+  output = subprocess.check_output(('awk', '/' + str(pid) + ' /{print $10 " "  $11}'), stdin=ps.stdout).decode('UTF-8').split()
   cpu = float(output[0].replace(',', '.'))
   ram = float(output[1].replace(',', '.'))
   return (cpu + ram)  / 2
