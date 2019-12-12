@@ -54,7 +54,7 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
 
   def add_thread(self, uuid):
     policy = self.thread_configuration_policy_for_default_thread if uuid == self.default_uuid else self.thread_configuration_policy
-    self.threads[uuid] = ThreadServicer(uuid, policy.get_configuration())
+    self.threads[uuid] = ThreadServicer(uuid, policy.get_configuration(), self)
     policy.add_on_change(self.threads[uuid].update_configuration)
     self.threads[uuid].update_configuration(policy.get_configuration())
     self.threads[uuid].start_broadcasting()
@@ -117,14 +117,26 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
     return count
 
 
-  def broadcast_from_numerical_error_queue(self, count):
-    for i in range(0, count):
-      
+  def broadcast_from_numerical_error_queue(self):
+    priority_threshold = 3
+    count = 0
+    while True:
+      priority, thread_servicer = self.numerical_error_queue.get()
+      if priority >= priority_threshold:
+        break
+      while thread_servicer.get_numerical_priority() < priority_threshold:
+        if thread_servicer.broadcast_message():
+          count += 1
+      self.numerical_error_queue.put((thread_servicer.get_numerical_priority(), thread_servicer))
+    return count
 
   def broadcast_messages(self):
     while True:
-      count = self.broadcast_from_staleness_queue()
-      self.broadcast_from_numerical_error_queue(max(count, total - count))
+      count = 0
+      count += self.broadcast_from_staleness_queue()
+      count += self.broadcast_from_numerical_error_queue()
+      
+
 
 
   def SendMessage(self, sentMessage, context):
@@ -136,11 +148,12 @@ class ChatServicer(chat_pb2_grpc.ChatServerServicer):
       yield self.__send_message(sentMessage)
 
 class ThreadServicer(AcknowledgementTracker):
-  def __init__(self, uuid, thread_configuration):
+  def __init__(self, uuid, thread_configuration, chat_servicer):
     AcknowledgementTracker.__init__(self)
     self.session_store = SessionStore()
     self.uuid = uuid
     self.thread_configuration = thread_configuration
+    self.chat_servicer = chat_servicer
     # the broadcast queue contains messages that still need to be broadcasted to individual threads
     # while using its lock, do not lock the commit queue (to avoid deadlocks)
     self.broadcast_queue = queue.Queue()
@@ -157,6 +170,9 @@ class ThreadServicer(AcknowledgementTracker):
 
   def _after_acknowledge(self, count):
     self.numerical_error_limiter.decrease_numerical_error_by(count)
+
+  def get_numerical_priority(self):
+    return self.numerical_error_limiter.max_numerical_error - self.broadcast_queue.qsize()
 
   def Connect(self, name):
     print('New connection')
