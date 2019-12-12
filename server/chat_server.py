@@ -249,12 +249,23 @@ def _load_balancer_listener(load_balancer_connection, info, pid):
       status = load_balancer_connection.sendPong(pong)
 
 def get_load(pid):
-  # Run top
-  ps = subprocess.Popen(['top', '-p', str(pid), '-n1'], stdout=subprocess.PIPE)
-  # Parse the output with awk
-  output = subprocess.check_output(('awk', '/' + str(pid) + ' /{print $10 " "  $11}'), stdin=ps.stdout).decode('UTF-8').split()
-  cpu = float(output[0].replace(',', '.'))
-  ram = float(output[1].replace(',', '.'))
+  try:
+    # Run top
+    cmd = subprocess.Popen('top -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
+    # Parse the output
+    for line in cmd.stdout:
+      d = line.decode('UTF-8')
+      if pid in d:
+          d_s = d.split()
+          index = d_s.index('python3')
+          cpu = d_s[index - 3]
+          ram = d_s[index - 2]
+          break
+    cpu = float(cpu.replace(',', '.'))
+    ram = float(ram.replace(',', '.'))
+  except:
+    print('load not working')
+    return 1
   return (cpu + ram)  / 2
 
 server = None
@@ -287,8 +298,8 @@ def serve(block = False, max_numerical_error_global = 10, max_order_error_global
   load_balancer_connection = load_balancer_pb2_grpc.LoadBalancerServerStub(load_balancer_channel)
 
   info = load_balancer_pb2.ConnectionInfo(ip='localhost', port=str(port))
-  pid = os.getpid()
-  print('PID:' + str(pid))
+  pid = str(os.getpid())
+  print('PID:' + pid)
   threading.Thread(target=_load_balancer_listener, args=(load_balancer_connection, info, pid), daemon=True).start()
 
   if block:

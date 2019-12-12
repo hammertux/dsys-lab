@@ -4,13 +4,24 @@ import time
 from threading import Thread
 
 def get_load():
-  pid = os.getpid()
-  # Run top
-  ps = subprocess.Popen(['top', '-p', str(pid), '-n1'], stdout=subprocess.PIPE)
-  # Parse the output with awk
-  output = subprocess.check_output(('awk', '/' + str(pid) + ' /{print $10 " "  $11}'), stdin=ps.stdout).decode('UTF-8').split()
-  cpu = float(output[0].replace(',', '.'))
-  ram = float(output[1].replace(',', '.'))
+  pid = str(os.getpid())
+  try:
+    # Run top
+    cmd = subprocess.Popen('top -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
+    # Parse the output
+    for line in cmd.stdout:
+      d = line.decode('UTF-8')
+      if pid in d:
+          d_s = d.split()
+          index = d_s.index('python3')
+          cpu = d_s[index - 3]
+          ram = d_s[index - 2]
+          break
+    cpu = float(cpu.replace(',', '.'))
+    ram = float(ram.replace(',', '.'))
+  except:
+    print('load not working')
+    return 1
   return (cpu + ram)  / 2
 
 class ThreadConfiguration:
