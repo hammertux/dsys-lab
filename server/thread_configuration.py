@@ -1,10 +1,13 @@
 import os
 import subprocess
 import time
+import csv
 from threading import Thread
 
+global pid
+pid = str(os.getpid())
+
 def get_load():
-  pid = str(os.getpid())
   try:
     # Run top
     cmd = subprocess.Popen('top -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
@@ -23,6 +26,13 @@ def get_load():
     print('load not working')
     return 1
   return (cpu + ram)  / 2
+
+def log_policy(policy):
+  with open('./logs/server_policy_' + pid + '.csv', 'a', newline='') as file:
+    logger = csv.writer(file)
+    ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
+    logger.writerow([time.time(), policy])
+
 
 class ThreadConfiguration:
   def __init__(self, max_numerical_error, max_order_error, max_staleness, session_length = None, session_refresh_time = None):
@@ -72,8 +82,12 @@ class DoubleErrorUnderLoadThreadConfigurationFactory(LoadThresholdThreadConfigur
     )
   
   def get_configuration(self):
-    # Log policy
-    return self.normal_configuration if get_load() < self.threshold else self.high_load_configuration
+    if get_load() < self.threshold:
+      log_policy(0)
+      return self.normal_configuration 
+    else:
+      log_policy(1)
+      return self.high_load_configuration
 
 class ThreadConfigurationPolicy:
   def __init__(self, thread_configuration):

@@ -246,7 +246,7 @@ class ThreadServicer(AcknowledgementTracker):
       logger.writerow([time.time(), error, error_type])
 
   def log_status(self, status):
-    with open('./logs/server_statusses_' + pid + '.csv', 'a', newline='') as file:
+    with open('./logs/server_statuses_' + pid + '.csv', 'a', newline='') as file:
       logger = csv.writer(file)
       ### status_code: 0 = ok, 1 = client error, 2 = internal error, 3 = order error, 4 = numerical error, 5 = staleness
       logger.writerow([time.time(), status])
@@ -297,7 +297,7 @@ def create_initial_logs():
     logger = csv.writer(file)
     logger.writerow(['timestamp', 'error_val', 'type'])
   ### status_code: 0 = ok, 1 = client error, 2 = internal error, 3 = order error, 4 = numerical error, 5 = staleness
-  with open('./logs/server_statusses_' + pid + '.csv', 'w', newline='') as file:
+  with open('./logs/server_statuses_' + pid + '.csv', 'w', newline='') as file:
     logger = csv.writer(file)
     logger.writerow(['timestamp', 'status_code'])
 
