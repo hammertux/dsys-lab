@@ -308,6 +308,10 @@ def create_initial_logs():
 
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10, load_check_interval = 5, load_threshold = 1):
+  global pid 
+  pid = str(os.getpid())
+  print('PID:' + pid)
+  create_initial_logs()
   global server
   # Start server
   server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=10))
@@ -336,11 +340,6 @@ def serve(block = False, max_numerical_error_global = 10, max_order_error_global
   load_balancer_connection = load_balancer_pb2_grpc.LoadBalancerServerStub(load_balancer_channel)
 
   info = load_balancer_pb2.ConnectionInfo(ip='localhost', port=str(port))
-  global pid 
-  pid = str(os.getpid())
-  print('PID:' + pid)
-
-  create_initial_logs()
 
   threading.Thread(target=_load_balancer_listener, args=(load_balancer_connection, info, pid), daemon=True).start()
 
