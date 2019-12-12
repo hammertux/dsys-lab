@@ -36,7 +36,9 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
     def get_thread_connection(self, thread_uuid):
         if thread_uuid in self.threads.keys():
             with self.connections_lock:
-                return self.connections[self.threads[thread_uuid]]
+                channel = self.threads[thread_uuid]
+                if channel in self.connections.keys():
+                    return self.connections[channel]
         return None
 
     def connection_info_to_channel(self, connectionInfo):
