@@ -1,0 +1,43 @@
+0.01user 0.00system 0:54.67elapsed 0%CPU (0avgtext+0avgdata 6076maxresident)k
+0inputs+0outputs (0major+519minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:18.28elapsed 0%CPU (0avgtext+0avgdata 6140maxresident)k
+0inputs+0outputs (0major+518minor)pagefaults 0swaps
+0.03user 0.01system 8:25.66elapsed 0%CPU (0avgtext+0avgdata 6164maxresident)k
+0inputs+0outputs (0major+524minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:03.75elapsed 0%CPU (0avgtext+0avgdata 6056maxresident)k
+0inputs+0outputs (0major+514minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.01user 0.00system 0:23.85elapsed 0%CPU (0avgtext+0avgdata 6068maxresident)k
+0inputs+0outputs (0major+517minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:14.89elapsed 0%CPU (0avgtext+0avgdata 6068maxresident)k
+0inputs+0outputs (0major+517minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:18.51elapsed 0%CPU (0avgtext+0avgdata 6152maxresident)k
+0inputs+0outputs (0major+520minor)pagefaults 0swaps
+Command exited with non-zero status 1
+0.00user 0.00system 0:01.15elapsed 0%CPU (0avgtext+0avgdata 6080maxresident)k
+0inputs+0outputs (0major+518minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:12.78elapsed 0%CPU (0avgtext+0avgdata 6152maxresident)k
+0inputs+0outputs (0major+519minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:29.64elapsed 0%CPU (0avgtext+0avgdata 6064maxresident)k
+0inputs+0outputs (0major+520minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.01user 0.00system 0:09.09elapsed 0%CPU (0avgtext+0avgdata 6068maxresident)k
+0inputs+0outputs (0major+518minor)pagefaults 0swaps
+4.53user 0.20system 25:04.86elapsed 0%CPU (0avgtext+0avgdata 6568maxresident)k
+0inputs+0outputs (0major+744minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:14.78elapsed 0%CPU (0avgtext+0avgdata 6204maxresident)k
+0inputs+0outputs (0major+521minor)pagefaults 0swaps
+Command exited with non-zero status 130
+0.00user 0.00system 0:07.65elapsed 0%CPU (0avgtext+0avgdata 6200maxresident)k
+0inputs+0outputs (0major+522minor)pagefaults 0swaps
+9.42user 0.33system 41:45.88elapsed 0%CPU (0avgtext+0avgdata 6800maxresident)k
+0inputs+0outputs (0major+852minor)pagefaults 0swaps
+15.87user 0.54system 1:23:24elapsed 0%CPU (0avgtext+0avgdata 6944maxresident)k
+32inputs+0outputs (0major+958minor)pagefaults 0swaps

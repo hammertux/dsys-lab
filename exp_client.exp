@@ -1,0 +1,69 @@
+#!/usr/bin/expect -f
+set force_conservative 0  ;# set to 1 to force conservative mode even if
+			  ;# script wasn't run conservatively originally
+if {$force_conservative} {
+	set send_slow {1 .1}
+	proc send {ignore arg} {
+		sleep .1
+		exp_send -s -- $arg
+	}
+}
+
+set UNAME [lindex $argv 0]
+set NUM_MSG [lindex $argv 1]
+set MSG_LEN [lindex $argv 2]
+set TH_TEST [lindex $argv 3]
+
+set s "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNOPQRSTUVWXYZ23456789"
+for {set i 1} {$i <= $MSG_LEN} {incr i} {
+    append p [string index $s [expr {int([string length $s]*rand())}]]
+}
+
+set hexs  "0123456789abcdef"
+for {set i 1} {$i <= 32} {incr i} {
+		append th [string index $hexs [expr {int([string length $hexs]*rand())}]]
+}
+
+#exp_internal 1
+set timeout 5
+spawn python3 run_client.py $UNAME
+match_max 100000
+expect -re "(Listening to new thread\n
+Connected to server with session (.*)\n
+Welcome to the chat test1\n)"
+
+
+
+exp_internal 0 
+
+if {$TH_TEST > 0} {
+	
+	for {set i 0} {$i < $NUM_MSG} {incr i} {
+		send -- "$p | $th\r"
+		expect -re "(.*)\n
+		(.*)\n
+		(.*)\n"
+	}
+} else {
+
+for {set i 0} {$i < $NUM_MSG} {incr i} {
+
+send -- "$p\r"
+expect -re "($p\n
+(.*)\n
+(.*)\n)
+"
+}
+}
+
+
+
+
+
+
+
+
+
+
+send -- ""
+expect eof
