@@ -7,22 +7,20 @@ def get_load():
   pid = str(os.getpid())
   try:
     # Run top
-    cmd = subprocess.Popen('top -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
+    cmd = subprocess.Popen('top -b -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
     # Parse the output
     for line in cmd.stdout:
       d = line.decode('UTF-8')
       if pid in d:
           d_s = d.split()
-          index = d_s.index('python3')
-          cpu = d_s[index - 3]
-          ram = d_s[index - 2]
+          index = d_s.index(pid)
+          cpu = d_s[index + 8]
           break
     cpu = float(cpu.replace(',', '.'))
-    ram = float(ram.replace(',', '.'))
   except:
     print('load not working')
     return 1
-  return (cpu + ram)  / 2
+  return cpu
 
 class ThreadConfiguration:
   def __init__(self, max_numerical_error, max_order_error, max_staleness, session_length = None, session_refresh_time = None):
