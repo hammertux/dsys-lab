@@ -251,15 +251,15 @@ def _load_balancer_listener(load_balancer_connection, info, pid):
 def get_load(pid):
   try:
     # Run top
-    cmd = subprocess.Popen('top -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
+    cmd = subprocess.Popen('top -b -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
     # Parse the output
     for line in cmd.stdout:
       d = line.decode('UTF-8')
       if pid in d:
           d_s = d.split()
-          index = d_s.index('python3')
-          cpu = d_s[index - 3]
-          ram = d_s[index - 2]
+          index = d_s.index(pid)
+          cpu = d_s[index + 8]
+          ram = d_s[index + 9]
           break
     cpu = float(cpu.replace(',', '.'))
     ram = float(ram.replace(',', '.'))
