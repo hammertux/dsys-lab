@@ -10,22 +10,20 @@ pid = str(os.getpid())
 def get_load():
   try:
     # Run top
-    cmd = subprocess.Popen('top -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
+    cmd = subprocess.Popen('top -b -p ' + pid + ' -n1', shell=True, stdout=subprocess.PIPE)
     # Parse the output
     for line in cmd.stdout:
       d = line.decode('UTF-8')
       if pid in d:
           d_s = d.split()
-          index = d_s.index('python3')
-          cpu = d_s[index - 3]
-          ram = d_s[index - 2]
+          index = d_s.index(pid)
+          cpu = d_s[index + 8]
           break
     cpu = float(cpu.replace(',', '.'))
-    ram = float(ram.replace(',', '.'))
   except:
     print('load not working')
     return 1
-  return (cpu + ram)  / 2
+  return cpu
 
 def log_policy(policy):
   with open('./logs/server_policy_' + pid + '.csv', 'a', newline='') as file:
