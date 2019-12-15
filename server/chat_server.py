@@ -259,14 +259,12 @@ def get_load(pid):
           d_s = d.split()
           index = d_s.index(pid)
           cpu = d_s[index + 8]
-          ram = d_s[index + 9]
           break
     cpu = float(cpu.replace(',', '.'))
-    ram = float(ram.replace(',', '.'))
   except:
     print('load not working')
     return 1
-  return (cpu + ram)  / 2
+  return cpu
 
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10, load_check_interval = 5, load_threshold = 1):
