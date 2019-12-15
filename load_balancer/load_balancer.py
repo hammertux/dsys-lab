@@ -16,6 +16,7 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
     def __init__(self):
         # Key: Connectioninfo channel
         # Value: Connectioninfo object
+        self.create_connection_lock = threading.RLock()
         self.connections_lock = threading.RLock()
         self.connections = {}
 
@@ -150,21 +151,22 @@ class LoadBalancerServicer(load_balancer_pb2_grpc.LoadBalancerServerServicer):
         if connection:
             return connection
         else:
-            # Get the loads
-            with self.messages_lock:
-                for _, q in self.message_queues.items():
-                    q.put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.LOAD, thread=chat_pb2.Thread()))
-            time.sleep(0.5)
+            with self.create_connection_lock:
+                # Get the loads
+                with self.messages_lock:
+                    for _, q in self.message_queues.items():
+                        q.put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.LOAD, thread=chat_pb2.Thread()))
+                time.sleep(0.5)
 
-            # Create thread on connection with lowest load
-            channel = self.get_lowest_load()
-            self.message_queues[channel].put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.CREATETHREAD, thread=Thread))
+                # Create thread on connection with lowest load
+                channel = self.get_lowest_load()
+                self.message_queues[channel].put(load_balancer_pb2.Request(type=load_balancer_pb2.RequestType.CREATETHREAD, thread=Thread))
 
-            # Add thread - channel mapping
-            self.threads[Thread.uuid.hex] = channel
+                # Add thread - channel mapping
+                self.threads[Thread.uuid.hex] = channel
 
-            self.loads = {}
-            return self.connections[channel]
+                self.loads = {}
+                return self.connections[channel]
 
 server = None
 def serve(block = False):

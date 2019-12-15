@@ -2,6 +2,9 @@ from proto import chat_pb2 # Contains the code necessary for constructing messag
 import uuid # Contains code for universally unique identifiers
 import queue
 import threading
+import os
+import sys
+import csv
 from . import time_utils
 from . import message as message_mod
 from .acknowledgement_tracker import AcknowledgementTracker, ProxyAcknowledgeable
@@ -57,6 +60,7 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
     self.uuid = uuid.uuid4()
     self.name = name
     self.thread_servicer = thread_servicer
+    self.pid = str(os.getpid())
     # queue containing messages that need to be sent to the client
     self.message_queue = queue.Queue()
     self.message_queue_generator = StoppableQueueGenerator(self.message_queue)
@@ -106,14 +110,25 @@ class Session(AcknowledgementTracker, message_mod.ChatCommittable, TimedSession)
         # construct an update message
         update = message_mod.Update(self.expiration_time)
         if message is not None:
+          # Log staleness
+          self.log_staleness(self.get_current_timestamp() - message.message.sent_time)
           update.add_message(message.message)
         print("Sending")
-
         # write the update to the client
         yield update.to_chat_pb2()
     finally:
       self.__receive_updates_lock.release()
   
+  def log_staleness(self, error):
+    with open('./logs/server_errors_' + self.pid + '.csv', 'a', newline='') as file:
+      logger = csv.writer(file)
+      ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
+      logger.writerow([time.time(), error, 1])
+
+  def get_current_timestamp(self):
+    return int(round(time.time() * 1000 * 1000))
+
+
   def _can_extend(self):
     return self.message_queue.empty()
 

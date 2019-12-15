@@ -15,6 +15,7 @@ import concurrent.futures
 import random
 import os
 import sys
+import csv
 import time
 import subprocess
 from pprint import pprint
@@ -197,18 +198,23 @@ class ThreadServicer(AcknowledgementTracker):
       sender_session = sender_session,
       commit_number_generator = self.commit_number_generator
     )
+    self.log_error(self.get_current_timestamp() - int(sentMessage.timestamp.timestamp), 0)
     # try to commit the message
     try:
       self.message_consistency.commit(message, time_utils.to_python_time(message.time_left_before_commit_deadline()))
+      self.log_status(0)
       return self.__create_ok_message_status(message)
     # if the message could not be committed due to the numerical error being too high
     except NumericalError:
+      self.log_status(4)
       return self.__create_numerical_error_message_status()
     # if the message could not be committed due to the order error being too high
     except OrderError:
+      self.log_status(3)
       return self.__create_order_error_message_status()
     # if the message could not be committed due to the message having arrived too late
     except message_mod.CommitTooLate as e:
+      self.log_status(5)
       return e.to_message_status()
 
   def start_broadcasting(self):
@@ -232,6 +238,21 @@ class ThreadServicer(AcknowledgementTracker):
         session.add_unacknowledged(session_message.acknowledgeable)
         session.message_queue.put(session_message)
         session_message.acknowledgeable.set_auto_acknowledge(time_utils.to_python_time(expiration_time))
+
+  def log_error(self, error, error_type):
+    with open('./logs/server_errors_' + pid + '.csv', 'a', newline='') as file:
+      logger = csv.writer(file)
+      ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
+      logger.writerow([time.time(), error, error_type])
+
+  def log_status(self, status):
+    with open('./logs/server_statuses_' + pid + '.csv', 'a', newline='') as file:
+      logger = csv.writer(file)
+      ### status_code: 0 = ok, 1 = client error, 2 = internal error, 3 = order error, 4 = numerical error, 5 = staleness
+      logger.writerow([time.time(), status])
+
+  def get_current_timestamp(self):
+    return int(round(time.time() * 1000 * 1000))
 
 def _load_balancer_listener(load_balancer_connection, info, pid):
   for req in load_balancer_connection.receiveRequests(info):
@@ -268,8 +289,29 @@ def get_load(pid):
     return 1
   return (cpu + ram)  / 2
 
+def create_initial_logs():
+  if not os.path.exists('./logs/'):
+    os.makedirs('./logs/')
+  ### type: 0 = staleness received, 1 = staleness sending, 2 = numerical, 3 = order
+  with open('./logs/server_errors_' + pid + '.csv', 'w', newline='') as file:
+    logger = csv.writer(file)
+    logger.writerow(['timestamp', 'error_val', 'type'])
+  ### status_code: 0 = ok, 1 = client error, 2 = internal error, 3 = order error, 4 = numerical error, 5 = staleness
+  with open('./logs/server_statuses_' + pid + '.csv', 'w', newline='') as file:
+    logger = csv.writer(file)
+    logger.writerow(['timestamp', 'status_code'])
+  with open('./logs/server_policy_' + pid + '.csv', 'w', newline='') as file:
+    logger = csv.writer(file)
+    ### policy: 0 = normal configuration, 1 = high load configuration
+    logger.writerow(['timestamp', 'policy'])
+
+
 server = None
 def serve(block = False, max_numerical_error_global = 10, max_order_error_global = 5, max_staleness_global = 10, max_numerical_error_other = 2, max_order_error_other = 1, max_staleness_other = 10, load_check_interval = 5, load_threshold = 1):
+  global pid 
+  pid = str(os.getpid())
+  print('PID:' + pid)
+  create_initial_logs()
   global server
   # Start server
   server = grpc.server(concurrent.futures.ThreadPoolExecutor(max_workers=10))
@@ -298,8 +340,7 @@ def serve(block = False, max_numerical_error_global = 10, max_order_error_global
   load_balancer_connection = load_balancer_pb2_grpc.LoadBalancerServerStub(load_balancer_channel)
 
   info = load_balancer_pb2.ConnectionInfo(ip='localhost', port=str(port))
-  pid = str(os.getpid())
-  print('PID:' + pid)
+
   threading.Thread(target=_load_balancer_listener, args=(load_balancer_connection, info, pid), daemon=True).start()
 
   if block:
