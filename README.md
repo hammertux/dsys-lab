@@ -21,8 +21,10 @@ It makes use of these libraries:
 
 `python3 run_client.py <username>` spawns a new client which by default will join the global chat. Messages can be sent to the global chat or by specifying a discussion thread:
 
-<message> goes to global chat
-<message> | <disc. thread> goes to the specified discussion thread
-<message> | global to go back chatting in the global chat room
+`<message>` goes to global chat
+
+`<message> | <disc. thread>` goes to the specified discussion thread
+
+`<message> | global` to go back chatting in the global chat room
 
 
